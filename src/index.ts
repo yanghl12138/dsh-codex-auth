@@ -32,7 +32,7 @@ import {
 import type { CodexAuthTransport } from './codex-auth-adapter.ts'
 import { CodexAuthService } from './codex-auth-service.ts'
 import {
-  CODEX_LLM_SETTINGS_NAMESPACE, CodexLlmSettingsConfig,
+  CODEX_LLM_SETTINGS_NAMESPACE, CodexLlmSettingsConfig, createDefaultCodexLlmSettings,
 } from './codex-context.ts'
 import type { CodexLlmSettings } from './codex-context.ts'
 import { installEnvHttpProxy } from './env-proxy.ts'
@@ -60,8 +60,6 @@ export interface Config {
   codexCommand: string
   /** Selector label for the provider route. */
   displayName: string
-  /** Opt into the one-million-token context budget for supported GPT-5.6 and GPT-6 models. */
-  longContextEnabled: boolean
   /** Streaming transport for the route; SSE by default because the WebSocket upgrade is unreliable through common HTTP proxies. */
   transport: CodexAuthTransport
   /** WebSocket connect timeout in milliseconds; only used when `transport` is not `sse`; zero disables it. */
@@ -77,7 +75,6 @@ export const Config: z<Config> = z.object({
   refreshLeadMs: z.number().min(0).default(DEFAULT_REFRESH_LEAD_MS),
   codexCommand: z.string().default('codex'),
   displayName: z.string().default('OpenAI Codex (chatgpt)'),
-  longContextEnabled: z.boolean().default(false),
   transport: z.union([z.const('auto'), z.const('sse'), z.const('websocket')]).default(DEFAULT_TRANSPORT),
   websocketConnectTimeoutMs: z.natural().default(DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS),
   timeoutMs: z.natural().default(DEFAULT_REQUEST_TIMEOUT_MS),
@@ -106,7 +103,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.inject(['commands'], commandCtx => {
     commandCtx.commands.register(createCodexAuthCommand(service, () => accountMode))
   })
-  const settingsEntry: CodexLlmSettings = { longContextEnabled: config.longContextEnabled }
+  const settingsEntry: CodexLlmSettings = createDefaultCodexLlmSettings()
   let currentSettings = (): CodexLlmSettings => settingsEntry
   let announceModelPolicyChange = (): void => {}
   if (config.llmEnabled) {

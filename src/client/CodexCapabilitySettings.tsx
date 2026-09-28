@@ -1,5 +1,5 @@
 /** Unified four-card settings surface for the Codex Capability Bundle. */
-import { useCallback, useEffect, useId, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
@@ -12,8 +12,22 @@ import type { ImageQuality, ImageSize } from '../image-options.ts'
 import classes from './CodexCapabilitySettings.module.css'
 
 export interface LlmSettingsView {
-  longContextEnabled: boolean
+  'gpt-5.6-luna': boolean
+  'gpt-5.6-sol': boolean
+  'gpt-5.6-terra': boolean
+  'gpt-6-astra': boolean
+  'gpt-6-sol': boolean
+  'gpt-6-luna': boolean
 }
+
+const LONG_CONTEXT_FIELDS = [
+  ['gpt-5.6-luna', 'contextGpt56Luna'],
+  ['gpt-5.6-sol', 'contextGpt56Sol'],
+  ['gpt-5.6-terra', 'contextGpt56Terra'],
+  ['gpt-6-astra', 'contextGpt6Astra'],
+  ['gpt-6-sol', 'contextGpt6Sol'],
+  ['gpt-6-luna', 'contextGpt6Luna'],
+] as const satisfies ReadonlyArray<readonly [keyof LlmSettingsView, CodexAuthKey]>
 
 export interface SearchSettingsView {
   enabled: boolean
@@ -65,6 +79,11 @@ export function CodexCapabilitySettings({
   const searchRegionId = useId()
   const imageRegionId = useId()
   const llm = useScope(llmScope)
+  const enabledContextModelCount = llm.value === undefined
+    ? 0
+    : LONG_CONTEXT_FIELDS.filter(([field]) => llm.value?.[field] === true).length
+  const allLongContextEnabled = enabledContextModelCount === LONG_CONTEXT_FIELDS.length
+  const someLongContextEnabled = enabledContextModelCount > 0 && !allLongContextEnabled
   const search = useScope(searchScope)
   const image = useScope(imageScope)
 
@@ -179,13 +198,14 @@ export function CodexCapabilitySettings({
             intro={t('contextCardIntro')}
             badge={llm.value === undefined
               ? undefined
-              : llm.value.longContextEnabled ? t('contextLongBadge') : t('contextStandardBadge')}
+              : t('contextCountBadge').replace('{count}', String(enabledContextModelCount))}
             action={llm.value === undefined ? null : (
               <Switch
-                label={t('enableLongContext')}
-                checked={llm.value.longContextEnabled}
+                label={t('toggleAllLongContext')}
+                checked={allLongContextEnabled}
+                indeterminate={someLongContextEnabled}
                 disabled={!llm.writable}
-                onChange={next => { void writer(llmScope, setError, t)('longContextEnabled', next) }}
+                onChange={() => { void writeLongContextFields(llmScope, setError, t, !allLongContextEnabled) }}
               />
             )}
           />
@@ -193,6 +213,19 @@ export function CodexCapabilitySettings({
             <div className={classes.contextDetails}>
               <p>{t('contextBehavior')}</p>
               <p className={classes.contextWarning}>{t('contextWarning')}</p>
+            </div>
+            <div className={classes.contextModelList}>
+              {LONG_CONTEXT_FIELDS.map(([field, label]) => (
+                <div className={classes.contextModelRow} key={field}>
+                  <span>{t(label)}</span>
+                  <Switch
+                    label={t(label)}
+                    checked={llm.value?.[field] === true}
+                    disabled={!llm.writable}
+                    onChange={next => { void writer(llmScope, setError, t)(field, next) }}
+                  />
+                </div>
+              ))}
             </div>
           </SettingsState>
         </article>
@@ -636,17 +669,24 @@ function ImageControls({
 function Switch({
   label,
   checked,
+  indeterminate = false,
   disabled,
   onChange,
 }: {
   label: string
   checked: boolean
+  indeterminate?: boolean
   disabled: boolean
   onChange: (value: boolean) => void
 }): ReactNode {
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (inputRef.current !== null) inputRef.current.indeterminate = indeterminate
+  }, [indeterminate])
   return (
     <label className={classes.switchToggle} title={label}>
       <input
+        ref={inputRef}
         type="checkbox"
         aria-label={label}
         checked={checked}
@@ -682,6 +722,19 @@ function writer<T>(
     onError(null)
     try { await scope.set(field, value) } catch (error) { onError(messageOf(error, t('writeFailed'))) }
   }
+}
+
+async function writeLongContextFields(
+  scope: SettingsScope<LlmSettingsView>,
+  onError: (message: string | null) => void,
+  t: CodexCapabilitySettingsProps['t'],
+  enabled: boolean,
+): Promise<void> {
+  onError(null)
+  const results = await Promise.allSettled(LONG_CONTEXT_FIELDS.map(([field]) =>
+    Promise.resolve().then(() => scope.set(field, enabled))))
+  const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  if (failure !== undefined) onError(messageOf(failure.reason, t('writeFailed')))
 }
 
 function localDate(value: string): string {

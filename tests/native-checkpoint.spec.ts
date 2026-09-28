@@ -17,6 +17,7 @@ import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
 import { CodexAuthAdapter } from '../src/codex-auth-adapter.ts'
 import type { CodexAuthAdapterOptions, CodexAuthTransport } from '../src/codex-auth-adapter.ts'
+import { createDefaultCodexLlmSettings } from '../src/codex-context.ts'
 import {
   codexNativeCheckpointCompatibilityDigest,
   hashCodexAccountIdentity,
@@ -490,7 +491,7 @@ function createCodexAdapter(
     refreshLeadMs: 5 * 60 * 1000,
     fetchImpl,
     displayName: 'OpenAI Codex (chatgpt)',
-    settings: () => ({ longContextEnabled: false }),
+    settings: createDefaultCodexLlmSettings,
     transport,
     websocketConnectTimeoutMs: 1_000,
     timeoutMs: 5_000,

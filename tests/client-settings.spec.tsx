@@ -11,6 +11,7 @@ import {
   CodexCapabilitySettings, CodexImageToolView, apply, inject,
 } from '../src/client/index.ts'
 import { en, zh } from '../src/client/locales.ts'
+import { CODEX_LONG_CONTEXT_MODEL_IDS, createDefaultCodexLlmSettings } from '../src/codex-context.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@deepseek-ai/dsh-client-ui-attachment', () => ({
@@ -19,7 +20,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-attachment', () => ({
   ),
 }))
 
-const LLM = { longContextEnabled: false }
+const LLM = createDefaultCodexLlmSettings()
 
 const SEARCH: CodexSearchSettings = {
   enabled: true,
@@ -147,8 +148,18 @@ describe('Codex Capability Bundle settings', () => {
     expect(screen.queryByText('/Users/alice/.codex/auth.json')).toBeNull()
     expect(screen.getByText(/no token value is ever sent to the Web client/i)).toBeTruthy()
 
-    fireEvent.click(screen.getByLabelText('Enable 1M context'))
-    await waitFor(() => expect(llm.set).toHaveBeenCalledWith('longContextEnabled', true))
+    fireEvent.click(screen.getByLabelText('Enable or disable 1M context for all models'))
+    await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(CODEX_LONG_CONTEXT_MODEL_IDS.length))
+    for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
+      expect(llm.set).toHaveBeenCalledWith(id, true)
+    }
+    expect((screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByText('1M enabled for 6/6 models')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('GPT-6 Sol'))
+    await waitFor(() => expect(llm.set).toHaveBeenCalledWith('gpt-6-sol', false))
+    expect((screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement).indeterminate).toBe(true)
+    expect(screen.getByText('1M enabled for 5/6 models')).toBeTruthy()
 
     const expandSearch = screen.getByRole('button', { name: 'Expand Web Search settings' })
     const expandImage = screen.getByRole('button', { name: 'Expand Image Creation settings' })

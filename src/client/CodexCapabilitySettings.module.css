@@ -214,6 +214,21 @@
   text-wrap: pretty;
 }
 
+.contextModelList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contextModelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+}
+
 .contextWarning {
   color: var(--dsw-alias-state-warn-label, #b45309);
 }
@@ -675,6 +690,14 @@
 
 .switchToggle input:checked + .switchSlider::after {
   transform: translateX(16px);
+}
+
+.switchToggle input:indeterminate + .switchSlider {
+  background: var(--dsw-alias-brand-primary, #4f6ef7);
+}
+
+.switchToggle input:indeterminate + .switchSlider::after {
+  transform: translateX(8px);
 }
 
 .switchToggle:has(input:focus-visible) .switchSlider {

@@ -90,27 +90,31 @@ const GPT_6_MODELS = [
 ] as const
 
 /** Independently live settings that affect the openai-codex model catalog. */
-export interface CodexLlmSettings {
-  longContextEnabled: boolean
+export type CodexLlmSettings = Record<typeof CODEX_LONG_CONTEXT_MODEL_IDS[number], boolean>
+
+export function createDefaultCodexLlmSettings(): CodexLlmSettings {
+  return Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, false])) as CodexLlmSettings
 }
 
-export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object({
-  longContextEnabled: z.boolean().default(false),
-})
+export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object(
+  Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, z.boolean().default(false)])) as {
+    [K in typeof CODEX_LONG_CONTEXT_MODEL_IDS[number]]: z<boolean>
+  },
+)
 
 /**
  * Keep the generated pi-ai catalog intact and overlay GPT-6 models only when
  * that installed catalog omits them. Enabling Long Context Mode then changes
- * only the known long-context family; every other descriptor and every
- * non-capacity field remains provider-owned.
+ * only the individually enabled long-context models; every other descriptor
+ * and every non-capacity field remains provider-owned.
  */
 export function applyCodexContextPolicy(
   models: readonly Model<Api>[],
   settings: CodexLlmSettings,
 ): readonly Model<Api>[] {
   const catalog = ensureCodexCatalogModels(models)
-  if (!settings.longContextEnabled) return catalog
-  return catalog.map(model => LONG_CONTEXT_MODEL_IDS.has(model.id)
+  if (!CODEX_LONG_CONTEXT_MODEL_IDS.some(id => settings[id])) return catalog
+  return catalog.map(model => LONG_CONTEXT_MODEL_IDS.has(model.id) && settings[model.id as keyof CodexLlmSettings]
     ? { ...model, contextWindow: CODEX_LONG_CONTEXT_WINDOW }
     : model)
 }

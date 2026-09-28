@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- Add GPT-6 Sol and Luna to the `openai-codex` model catalog when pi-ai omits them, with model-specific pricing, reasoning levels, and the existing opt-in 1M context policy. Reject unsupported explicit `temperature` before credential resolution.
+### Fork feature updates
+
+- `feat`: Add GPT-6 Sol and Luna to the Codex route when missing from pi-ai; reject unsupported explicit GPT-6 `temperature`.
+- `feat`: Add independent 1M context switches for GPT-5.6 Luna/Sol/Terra and GPT-6 Astra/Sol/Luna, with a UI-only switch to toggle all six.
+- `compat`: Do not migrate the former global `codex-llm.longContextEnabled` value. Previously enabled 1M context must be re-enabled per model after upgrading.
 
 ## [0.3.3-rc.1] - 2026-09-10
 

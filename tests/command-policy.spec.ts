@@ -20,7 +20,6 @@ function codexConfig(): Config {
     refreshLeadMs: 5 * 60 * 1000,
     codexCommand: 'definitely-not-codex',
     displayName: 'OpenAI Codex (chatgpt)',
-    longContextEnabled: false,
     transport: 'sse',
     websocketConnectTimeoutMs: 3000,
     timeoutMs: 60000,

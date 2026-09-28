@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultAuthJsonPath } from '../../src/codex-auth.ts'
 import { CodexAuthAdapter } from '../../src/codex-auth-adapter.ts'
 import { CodexAuthService } from '../../src/codex-auth-service.ts'
+import { createDefaultCodexLlmSettings } from '../../src/codex-context.ts'
 import { apply as applyCodexCompaction } from '../../src/compaction.ts'
 import {
   CODEX_NATIVE_CHECKPOINT_BLOCK_TYPE,
@@ -120,7 +121,7 @@ function mountLiveHost(automatic = false): LiveHost {
     refreshLeadMs: 5 * 60 * 1000,
     fetchImpl: probe.fetch,
     displayName: 'OpenAI Codex (chatgpt)',
-    settings: () => ({ longContextEnabled: false }),
+    settings: createDefaultCodexLlmSettings,
     transport: 'sse',
     websocketConnectTimeoutMs: 5_000,
     timeoutMs: 120_000,

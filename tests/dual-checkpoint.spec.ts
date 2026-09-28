@@ -31,6 +31,7 @@ import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import { CodexAuthAdapter } from '../src/codex-auth-adapter.ts'
+import { CODEX_LONG_CONTEXT_MODEL_IDS, createDefaultCodexLlmSettings } from '../src/codex-context.ts'
 import type { CodexAuthAdapterOptions } from '../src/codex-auth-adapter.ts'
 import {
   apply as applyCodexCompaction,
@@ -260,7 +261,7 @@ interface DualHostOptions {
   readonly accountId?: string
   readonly compactionBackend?: 'codex' | 'basic' | 'none'
   readonly credential?: CodexAuthAdapterOptions['auth']['credential']
-  readonly longContextEnabled?: boolean
+  readonly allLongContextEnabled?: boolean
   readonly nativeReply?: (attempt: number, init?: RequestInit) => Response | Promise<Response>
   readonly portableReply?: (attempt: number) => Response | Promise<Response>
   readonly onPayload?: CodexAuthAdapterOptions['onPayload']
@@ -323,7 +324,9 @@ function mountDualCheckpointHost(options: DualHostOptions = {}): {
     refreshLeadMs: 5 * 60 * 1000,
     fetchImpl: fetchMock,
     displayName: 'OpenAI Codex (chatgpt)',
-    settings: () => ({ longContextEnabled: options.longContextEnabled ?? false }),
+    settings: () => options.allLongContextEnabled
+      ? Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, true])) as ReturnType<typeof createDefaultCodexLlmSettings>
+      : createDefaultCodexLlmSettings(),
     transport: 'sse',
     websocketConnectTimeoutMs: 1_000,
     timeoutMs: options.timeoutMs ?? 5_000,
@@ -1549,7 +1552,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
 
     const long = mountDualCheckpointHost({
       accountId: 'acct_context_policy_fixture',
-      longContextEnabled: true,
+      allLongContextEnabled: true,
       compactionConfig,
     })
     const longSession = openConversation('dual-long-context')
@@ -1595,10 +1598,10 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
   })
 
   it('keeps native activation, v2 payload, checkpoint, and replay invariant under Long Context Mode', async () => {
-    const run = async (longContextEnabled: boolean) => {
+    const run = async (allLongContextEnabled: boolean) => {
       const host = mountDualCheckpointHost({
         accountId: 'acct_long_context_invariance_fixture',
-        longContextEnabled,
+        allLongContextEnabled,
         nativeReply: () => compactionResponse('opaque-long-context-invariant'),
       })
       vi.spyOn(host.ctx.sessions, 'flush').mockResolvedValue(true)

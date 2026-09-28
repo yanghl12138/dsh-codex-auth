@@ -9,6 +9,7 @@ import {
   CODEX_LONG_CONTEXT_MODEL_IDS,
   CODEX_LONG_CONTEXT_WINDOW,
   CODEX_STANDARD_CONTEXT_WINDOW,
+  createDefaultCodexLlmSettings,
 } from '../src/codex-context.ts'
 
 function fakeModel(id: string, extra: Partial<Model<Api>> = {}): Model<Api> {
@@ -34,7 +35,7 @@ describe('applyCodexContextPolicy', () => {
     const sol = fakeModel('gpt-5.6-sol', { name: 'GPT-5.6 Sol' })
     const luna = fakeModel('gpt-5.6-luna', { name: 'GPT-5.6 Luna' })
     const terra = fakeModel('gpt-5.6-terra')
-    const catalog = applyCodexContextPolicy([sol, luna, terra], { longContextEnabled: false })
+    const catalog = applyCodexContextPolicy([sol, luna, terra], createDefaultCodexLlmSettings())
     expect(catalog.map(model => model.id)).toEqual([
       CODEX_GPT_6_ASTRA_MODEL_ID,
       CODEX_GPT_6_SOL_MODEL_ID,
@@ -91,27 +92,27 @@ describe('applyCodexContextPolicy', () => {
     const astra = fakeModel(CODEX_GPT_6_ASTRA_MODEL_ID, { name: 'Installed Astra' })
     const luna = fakeModel(CODEX_GPT_6_LUNA_MODEL_ID, { name: 'Installed Luna' })
     const models = [astra, luna, fakeModel('gpt-5.6-sol'), fakeModel('gpt-5.6-luna')]
-    const catalog = applyCodexContextPolicy(models, { longContextEnabled: false })
+    const catalog = applyCodexContextPolicy(models, createDefaultCodexLlmSettings())
     expect(catalog.find(model => model.id === CODEX_GPT_6_ASTRA_MODEL_ID)).toBe(astra)
     expect(catalog.find(model => model.id === CODEX_GPT_6_LUNA_MODEL_ID)).toBe(luna)
     expect(catalog.filter(model => model.id === CODEX_GPT_6_SOL_MODEL_ID)).toHaveLength(1)
     const allInstalled = [astra, luna, fakeModel(CODEX_GPT_6_SOL_MODEL_ID)]
-    expect(applyCodexContextPolicy(allInstalled, { longContextEnabled: false })).toBe(allInstalled)
+    expect(applyCodexContextPolicy(allInstalled, createDefaultCodexLlmSettings())).toBe(allInstalled)
   })
 
   it('does not invent GPT-6 Astra without a GPT-5.6 Sol template', () => {
     const models = [fakeModel('gpt-5.4'), fakeModel('gpt-5.6-terra')]
-    expect(applyCodexContextPolicy(models, { longContextEnabled: false })).toBe(models)
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
   })
 
-  it('applies the 1M budget only to the known long-context family', () => {
+  it('applies each 1M budget independently to the known long-context family', () => {
     const gpt54 = fakeModel('gpt-5.4')
-    const catalog = applyCodexContextPolicy(
-      [fakeModel('gpt-5.6-luna'), fakeModel('gpt-5.6-sol'), fakeModel('gpt-5.6-terra'), gpt54],
-      { longContextEnabled: true },
-    )
-    for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
-      expect(catalog.find(model => model.id === id)?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
+    const models = [fakeModel('gpt-5.6-luna'), fakeModel('gpt-5.6-sol'), fakeModel('gpt-5.6-terra'), gpt54]
+    const settings = { ...createDefaultCodexLlmSettings(), 'gpt-5.6-sol': true }
+    const catalog = applyCodexContextPolicy(models, settings)
+    expect(catalog.find(model => model.id === 'gpt-5.6-sol')?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
+    for (const id of CODEX_LONG_CONTEXT_MODEL_IDS.filter(id => id !== 'gpt-5.6-sol')) {
+      expect(catalog.find(model => model.id === id)?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
     }
     expect(catalog.find(model => model.id === 'gpt-5.4')).toBe(gpt54)
   })

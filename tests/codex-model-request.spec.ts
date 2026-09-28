@@ -10,6 +10,7 @@ import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
+  createDefaultCodexLlmSettings,
 } from '../src/codex-context.ts'
 
 const NEW_MODELS = [CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_LUNA_MODEL_ID] as const
@@ -50,7 +51,7 @@ function fixture() {
     refreshLeadMs: 300_000,
     fetchImpl: fetchMock,
     displayName: 'Codex model policy fixture',
-    settings: () => ({ longContextEnabled: false }),
+    settings: createDefaultCodexLlmSettings,
     transport: 'sse',
     websocketConnectTimeoutMs: 1_000,
     timeoutMs: 1_000,
