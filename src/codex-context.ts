@@ -11,6 +11,7 @@ export const CODEX_LONG_CONTEXT_WINDOW = 1_000_000
 /** GPT-6 model ids exposed on the Codex route. */
 export const CODEX_GPT_6_ASTRA_MODEL_ID = 'gpt-6-astra'
 export const CODEX_GPT_6_SOL_MODEL_ID = 'gpt-6-sol'
+export const CODEX_GPT_6_1_SOL_MODEL_ID = 'gpt-6.1-sol'
 export const CODEX_GPT_6_LUNA_MODEL_ID = 'gpt-6-luna'
 
 /** Models that may report the opt-in 1M context budget. */
@@ -20,6 +21,7 @@ export const CODEX_LONG_CONTEXT_MODEL_IDS = [
   'gpt-5.6-terra',
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
+  CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
 ] as const
 
@@ -79,6 +81,13 @@ const GPT_6_MODELS = [
     name: 'GPT-6 Sol',
     cost: gpt6Cost(2, 10, 0.2, 2.5),
     thinkingLevelMap: GPT_6_SOL_LUNA_THINKING_LEVEL_MAP,
+  },
+  {
+    id: CODEX_GPT_6_1_SOL_MODEL_ID,
+    templateId: 'gpt-5.6-sol',
+    name: 'GPT-6.1 Sol',
+    cost: gpt6Cost(2, 10, 0.1, 2.5),
+    thinkingLevelMap: GPT_6_ASTRA_THINKING_LEVEL_MAP,
   },
   {
     id: CODEX_GPT_6_LUNA_MODEL_ID,

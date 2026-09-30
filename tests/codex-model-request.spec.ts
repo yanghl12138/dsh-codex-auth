@@ -10,6 +10,7 @@ import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
+  CODEX_GPT_6_1_SOL_MODEL_ID,
   createDefaultCodexLlmSettings,
 } from '../src/codex-context.ts'
 
@@ -23,7 +24,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-function fixture() {
+function fixture(response?: () => Response) {
   context = new Context()
   const accountId = 'synthetic-model-policy-account'
   const token = ['header', Buffer.from(JSON.stringify({
@@ -40,6 +41,7 @@ function fixture() {
     }
     if (typeof body !== 'string') throw new Error('Expected a serialized request body')
     payloads.push(JSON.parse(body) as Record<string, unknown>)
+    if (response !== undefined) return response()
     // Capture the final wire body, then stop without contacting the provider.
     return new Response('model policy fixture stop', { status: 400 })
   })
@@ -107,7 +109,7 @@ describe('Codex model request policy', () => {
       expect(payloads[0]).not.toHaveProperty('temperature')
     })
 
-    it.each(NEW_MODELS)('sends %s through the real provider', async model => {
+    it.each([...NEW_MODELS, CODEX_GPT_6_1_SOL_MODEL_ID])('sends %s through the real provider', async model => {
       const { adapter, payloads } = fixture()
       const options = request({ model })
       const call = mode === 'prepared'
@@ -132,6 +134,76 @@ describe('Codex model request policy', () => {
       expect(credential).not.toHaveBeenCalled()
       expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    it.each([0, 0.7])('rejects GPT-6.1 Sol temperature %s before resolving credentials', async temperature => {
+      const { adapter, credential, fetchMock } = fixture()
+      const options = request({ model: CODEX_GPT_6_1_SOL_MODEL_ID, temperature })
+      const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, options.model) : adapter
+      await expect(drain(call.stream(options))).rejects.toMatchObject({ code: 'UNSUPPORTED_OPTION' })
+      expect(credential).not.toHaveBeenCalled()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it.each(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(
+      'maps GPT-6.1 Sol %s to a supported wire effort', async level => {
+        const { adapter, payloads } = fixture()
+        const options = request({ model: CODEX_GPT_6_1_SOL_MODEL_ID, reasoningEffort: ReasoningEffortId(level) })
+        const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, options.model) : adapter
+        await drain(call.stream(options))
+        expect(payloads).toHaveLength(1)
+        expect(payloads[0]).toMatchObject({
+          model: CODEX_GPT_6_1_SOL_MODEL_ID,
+          reasoning: { effort: level === 'minimal' ? 'low' : level },
+        })
+      },
+    )
+
+    it('does not offer or send off reasoning for GPT-6.1 Sol', async () => {
+      const { adapter, fetchMock } = fixture()
+      const model = await adapter.resolveModel('openai-codex', CODEX_GPT_6_1_SOL_MODEL_ID)
+      expect(model.reasoning?.efforts.map(effort => effort.id)).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+      const options = request({ model: CODEX_GPT_6_1_SOL_MODEL_ID, reasoningEffort: ReasoningEffortId('off') })
+      const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, options.model) : adapter
+      await expect(drain(call.stream(options))).rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_EFFORT' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+  })
+
+  it('streams a GPT-6.1 Sol function call using the existing Responses transport', async () => {
+    const item = { type: 'function_call', id: 'fc_fixture', call_id: 'call_fixture', name: 'fixture_tool', arguments: '{"value":1}' }
+    const events = [
+      { type: 'response.output_item.added', output_index: 0, item: { ...item, arguments: '' } },
+      { type: 'response.function_call_arguments.delta', output_index: 0, item_id: item.id, delta: item.arguments },
+      { type: 'response.output_item.done', output_index: 0, item },
+      { type: 'response.completed', response: {
+        id: 'resp_fixture', status: 'completed', output: [item],
+        usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2,
+          input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
+      } },
+    ]
+    const { adapter, payloads } = fixture(() => new Response(
+      events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''),
+      { headers: { 'content-type': 'text/event-stream' } },
+    ))
+    const chunks = []
+    for await (const chunk of adapter.stream(request({
+      model: CODEX_GPT_6_1_SOL_MODEL_ID,
+      reasoningEffort: ReasoningEffortId('low'),
+      tools: [{ name: 'fixture_tool', description: 'Offline tool fixture', parameters: {
+        type: 'object', properties: { value: { type: 'number' } }, required: ['value'],
+      } }],
+    }))) chunks.push(chunk)
+    expect(payloads[0]).toMatchObject({
+      model: CODEX_GPT_6_1_SOL_MODEL_ID,
+      reasoning: { effort: 'low' },
+      tools: [expect.objectContaining({ type: 'function', name: 'fixture_tool' })],
+    })
+    expect(chunks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'block-end', block: expect.objectContaining({
+        type: 'tool-call', name: 'fixture_tool', arguments: '{"value":1}',
+      }) }),
+      expect.objectContaining({ type: 'finish', reason: { kind: 'tool-calls' } }),
+    ]))
   })
 
   it.each(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(

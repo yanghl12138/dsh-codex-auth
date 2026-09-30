@@ -154,12 +154,12 @@ describe('Codex Capability Bundle settings', () => {
       expect(llm.set).toHaveBeenCalledWith(id, true)
     }
     expect((screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByText('1M enabled for 6/6 models')).toBeTruthy()
+    expect(screen.getByText('1M enabled for 7/7 models')).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('GPT-6 Sol'))
     await waitFor(() => expect(llm.set).toHaveBeenCalledWith('gpt-6-sol', false))
     expect((screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement).indeterminate).toBe(true)
-    expect(screen.getByText('1M enabled for 5/6 models')).toBeTruthy()
+    expect(screen.getByText('1M enabled for 6/7 models')).toBeTruthy()
 
     const expandSearch = screen.getByRole('button', { name: 'Expand Web Search settings' })
     const expandImage = screen.getByRole('button', { name: 'Expand Image Creation settings' })
@@ -174,6 +174,31 @@ describe('Codex Capability Bundle settings', () => {
     await waitFor(() => expect(search.set).toHaveBeenCalledWith('mode', 'cached'))
     fireEvent.change(screen.getByLabelText('Default image count'), { target: { value: '3' } })
     await waitFor(() => expect(image.set).toHaveBeenCalledWith('n', 3))
+  })
+
+  it('toggles GPT-6.1 Sol independently and includes it in mixed and all-off states', async () => {
+    const llm = fakeScope(LLM)
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({ planType: 'plus' }))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    await screen.findByText('Active')
+    expect(screen.getByText('1M enabled for 0/7 models')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('GPT-6.1 Sol'))
+    await waitFor(() => expect(llm.set).toHaveBeenCalledExactlyOnceWith('gpt-6.1-sol', true))
+    const aggregate = screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement
+    expect(aggregate.indeterminate).toBe(true)
+    expect(screen.getByText('1M enabled for 1/7 models')).toBeTruthy()
+    llm.set.mockClear()
+    fireEvent.click(aggregate)
+    await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(7))
+    for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) expect(llm.set).toHaveBeenCalledWith(id, true)
+    expect(aggregate.indeterminate).toBe(false)
+    expect(aggregate.checked).toBe(true)
+    llm.set.mockClear()
+    fireEvent.click(aggregate)
+    await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(7))
+    for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) expect(llm.set).toHaveBeenCalledWith(id, false)
+    expect(aggregate.checked).toBe(false)
+    expect(screen.getByText('1M enabled for 0/7 models')).toBeTruthy()
   })
 
   it('announces loading settings while keeping skeleton rows decorative', async () => {
@@ -313,6 +338,11 @@ describe('client plugin registration', () => {
       },
       settingsScope: {
         bind: ({ namespace, decode }: { namespace: string; decode: (value: unknown) => unknown }) => {
+          if (namespace === 'codex-llm') {
+            expect(decode(LLM)).toEqual(LLM)
+            expect(decode({ ...LLM, 'gpt-6.1-sol': true })).toEqual({ ...LLM, 'gpt-6.1-sol': true })
+            expect(decode({ ...LLM, 'gpt-6.1-sol': 'true' })).toBeUndefined()
+          }
           if (namespace === 'codex-image') {
             const extended = { ...IMAGE, model: 'gpt-image-2.5-flare', quality: 'max', size: '1536x864' }
             expect(decode(extended)).toEqual(extended)

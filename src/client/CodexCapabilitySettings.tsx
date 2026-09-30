@@ -17,6 +17,7 @@ export interface LlmSettingsView {
   'gpt-5.6-terra': boolean
   'gpt-6-astra': boolean
   'gpt-6-sol': boolean
+  'gpt-6.1-sol': boolean
   'gpt-6-luna': boolean
 }
 
@@ -26,6 +27,7 @@ const LONG_CONTEXT_FIELDS = [
   ['gpt-5.6-terra', 'contextGpt56Terra'],
   ['gpt-6-astra', 'contextGpt6Astra'],
   ['gpt-6-sol', 'contextGpt6Sol'],
+  ['gpt-6.1-sol', 'contextGpt61Sol'],
   ['gpt-6-luna', 'contextGpt6Luna'],
 ] as const satisfies ReadonlyArray<readonly [keyof LlmSettingsView, CodexAuthKey]>
 
@@ -198,7 +200,9 @@ export function CodexCapabilitySettings({
             intro={t('contextCardIntro')}
             badge={llm.value === undefined
               ? undefined
-              : t('contextCountBadge').replace('{count}', String(enabledContextModelCount))}
+              : t('contextCountBadge')
+                .replace('{count}', String(enabledContextModelCount))
+                .replace('{total}', String(LONG_CONTEXT_FIELDS.length))}
             action={llm.value === undefined ? null : (
               <Switch
                 label={t('toggleAllLongContext')}

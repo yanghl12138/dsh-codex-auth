@@ -67,27 +67,36 @@ Adds GPT Image 2.5 Sunburst/Flare, advanced quality, and validated custom dimens
 
 This fork adds the following Codex model and context controls:
 
-- Adds GPT-6 Sol (`gpt-6-sol`) and GPT-6 Luna (`gpt-6-luna`) to the
+- Adds GPT-6 Sol (`gpt-6-sol`), GPT-6.1 Sol (`gpt-6.1-sol`), and GPT-6 Luna (`gpt-6-luna`) to the
   `openai-codex` catalog when the installed pi-ai catalog omits them, using the
   corresponding GPT-5.6 model descriptors as templates. Existing upstream
   descriptors are preserved.
 - Adds individual, live 1M context switches for GPT-5.6 Luna, Sol, and Terra and
-  GPT-6 Astra, Sol, and Luna. The aggregate switch enables or disables all six.
+  GPT-6 Astra, Sol, and Luna, plus GPT-6.1 Sol. The aggregate switch enables or disables all seven.
   DSH uses the reported context window for token-pressure and compaction
   decisions; no request parameter negotiates capacity with the backend.
 - Does not migrate the former global `codex-llm.longContextEnabled` preference.
-  After upgrading, all six model switches default to off—even if the old global
-  setting was on—so re-enable the models you want in GPT Auth Settings.
+  When upgrading from the global setting, model switches default to off—even if
+  that setting was on—so re-enable the models you want in GPT Auth Settings.
+  Existing per-model preferences are preserved when adding GPT-6.1 Sol; only
+  its new switch defaults to off.
 
 Requests beyond 272K may consume account quota faster, backend availability
 remains account-dependent, and enabling 1M context does not restore history that
 DSH already compacted.
 
-GPT-6 Astra does not support `temperature`. Sol and Luna reject it on this route
+GPT-6 Astra and GPT-6.1 Sol do not support `temperature`. GPT-6 Sol and Luna reject it on this route
 because DSH omits `off` reasoning rather than sending an explicit `none` effort;
 the effective effort may remain `medium`. Remove `temperature` from GPT-6 model
 requests; an explicit value (including `0`) returns `UNSUPPORTED_OPTION` before
 resolving credentials or sending a request.
+
+GPT-6.1 Sol uses the existing Codex Responses transport. Its reasoning controls
+are `low`, `medium` (default), `high`, `xhigh`, and `max`; the DSH `minimal`
+control maps to `low`, and `off` is unavailable. Model access depends on your
+account and rollout, even when it appears in the plugin catalog. See the
+[official model specifications](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+and [Codex availability](https://learn.chatgpt.com/docs/models).
 
 ### Experimental Dual Checkpoint compaction Adapter
 
@@ -449,8 +458,8 @@ Login State coordinator available to Search/Image without owning an LLM route:
 | `timeoutMs` | `120000` | Request timeout in milliseconds (SSE response-header phase; also the WebSocket message idle interval; `0` disables it) |
 
 The GPT Auth Settings page controls 1M context independently for GPT-5.6 Luna,
-Sol, and Terra and GPT-6 Astra, Sol, and Luna. Its aggregate switch is a
-front-end convenience that updates all six settings; it is not a plugin config field.
+Sol, and Terra, GPT-6 Astra, Sol, and Luna, and GPT-6.1 Sol. Its aggregate switch is a
+front-end convenience that updates all seven settings; it is not a plugin config field.
 
 Do not also add an `openai-codex` entry under `llm-pi-ai.providers` or install
 `dsh-codex`; duplicate route ownership is rejected with an explicit diagnostic.

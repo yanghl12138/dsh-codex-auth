@@ -25,6 +25,7 @@ import {
 import { CodexAuthService, type CodexAuthServiceOptions } from '../src/codex-auth-service.ts'
 import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
+  CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_LONG_CONTEXT_MODEL_IDS,
   CODEX_LONG_CONTEXT_WINDOW,
   CODEX_STANDARD_CONTEXT_WINDOW,
@@ -279,6 +280,16 @@ describe('Auth / LLM row configuration', () => {
     expect(parse({ 'gpt-6-sol': true })).toEqual({ ...createDefaultCodexLlmSettings(), 'gpt-6-sol': true })
   })
 
+  it('preserves saved six-model settings while defaulting only GPT-6.1 Sol off', () => {
+    const parse = CodexLlmSettingsConfig as unknown as (input: Record<string, unknown>) => Record<string, boolean>
+    const saved = {
+      'gpt-5.6-luna': true, 'gpt-5.6-sol': false, 'gpt-5.6-terra': true,
+      'gpt-6-astra': false, 'gpt-6-sol': true, 'gpt-6-luna': false,
+    }
+    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false })
+    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true })
+  })
+
   it('defaults the route to SSE transport with bounded transport timeouts', () => {
     const parse = PluginConfig as unknown as (input: Partial<PluginConfigView>) => PluginConfigView
     expect(parse({})).toMatchObject({
@@ -375,6 +386,7 @@ describe('CodexAuthAdapter route profile', () => {
 
     const standard = getModels()
     expect(standard.some(model => model.id === CODEX_GPT_6_ASTRA_MODEL_ID)).toBe(true)
+    expect(standard.some(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(true)
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
       expect(standard.find(model => model.id === id)?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
     }
@@ -391,6 +403,10 @@ describe('CodexAuthAdapter route profile', () => {
       off: null,
       max: 'max',
     })
+    contextSettings = { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true }
+    const solOnly = getModels()
+    expect(solOnly.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
+    expect(solOnly.find(model => model.id === 'gpt-6-sol')?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
   })
 
   it('keeps pi-ai credential storage and ambient discovery fail-closed', async () => {

@@ -46,6 +46,7 @@ import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
+  CODEX_GPT_6_1_SOL_MODEL_ID,
 } from './codex-context.ts'
 import type { CodexLlmSettings } from './codex-context.ts'
 import { CodexNativeCheckpointReplay } from './native-checkpoint-replay.ts'
@@ -385,6 +386,12 @@ async function* validateCodexStream(
   if (options.model === CODEX_GPT_6_ASTRA_MODEL_ID && options.temperature !== undefined) {
     throw new LlmError(
       'GPT-6 Astra does not support temperature; remove temperature from the model request',
+      'UNSUPPORTED_OPTION',
+    )
+  }
+  if (options.model === CODEX_GPT_6_1_SOL_MODEL_ID && options.temperature !== undefined) {
+    throw new LlmError(
+      'GPT-6.1 Sol does not support temperature; remove temperature from the model request',
       'UNSUPPORTED_OPTION',
     )
   }

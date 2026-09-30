@@ -1,11 +1,13 @@
 /** Catalog overlay and Long Context Mode policy for the openai-codex route. */
 import type { Api, Model } from '@earendil-works/pi-ai'
+import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 import {
   applyCodexContextPolicy,
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
+  CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_LONG_CONTEXT_MODEL_IDS,
   CODEX_LONG_CONTEXT_WINDOW,
   CODEX_STANDARD_CONTEXT_WINDOW,
@@ -39,6 +41,7 @@ describe('applyCodexContextPolicy', () => {
     expect(catalog.map(model => model.id)).toEqual([
       CODEX_GPT_6_ASTRA_MODEL_ID,
       CODEX_GPT_6_SOL_MODEL_ID,
+      CODEX_GPT_6_1_SOL_MODEL_ID,
       CODEX_GPT_6_LUNA_MODEL_ID,
       'gpt-5.6-sol',
       'gpt-5.6-luna',
@@ -88,6 +91,31 @@ describe('applyCodexContextPolicy', () => {
     }
   })
 
+  it('overlays GPT-6.1 Sol with its own pricing and required reasoning', () => {
+    const template = fakeModel('gpt-5.6-sol')
+    const catalog = applyCodexContextPolicy([template], createDefaultCodexLlmSettings())
+    const model = catalog.find(item => item.id === CODEX_GPT_6_1_SOL_MODEL_ID)
+    expect(model).toMatchObject({
+      id: CODEX_GPT_6_1_SOL_MODEL_ID,
+      name: 'GPT-6.1 Sol',
+      api: template.api,
+      provider: template.provider,
+      baseUrl: template.baseUrl,
+      input: template.input,
+      compat: template.compat,
+      contextWindow: CODEX_STANDARD_CONTEXT_WINDOW,
+      maxTokens: 128_000,
+      cost: {
+        input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5,
+        tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5 }],
+      },
+      thinkingLevelMap: { off: null, minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
+    })
+    if (model === undefined) throw new Error('missing GPT-6.1 Sol')
+    expect(getSupportedThinkingLevels(model)).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+    expect(template.cost.cacheRead).toBe(0)
+  })
+
   it('preserves installed GPT-6 rows while filling only missing siblings', () => {
     const astra = fakeModel(CODEX_GPT_6_ASTRA_MODEL_ID, { name: 'Installed Astra' })
     const luna = fakeModel(CODEX_GPT_6_LUNA_MODEL_ID, { name: 'Installed Luna' })
@@ -98,6 +126,13 @@ describe('applyCodexContextPolicy', () => {
     expect(catalog.filter(model => model.id === CODEX_GPT_6_SOL_MODEL_ID)).toHaveLength(1)
     const allInstalled = [astra, luna, fakeModel(CODEX_GPT_6_SOL_MODEL_ID)]
     expect(applyCodexContextPolicy(allInstalled, createDefaultCodexLlmSettings())).toBe(allInstalled)
+  })
+
+  it('preserves an installed GPT-6.1 Sol descriptor without duplicating it', () => {
+    const installed = fakeModel(CODEX_GPT_6_1_SOL_MODEL_ID, { name: 'Installed Sol', contextWindow: 1_050_000 })
+    const catalog = applyCodexContextPolicy([installed, fakeModel('gpt-5.6-sol')], createDefaultCodexLlmSettings())
+    expect(catalog.filter(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toEqual([installed])
+    expect(catalog.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(installed)
   })
 
   it('does not invent GPT-6 Astra without a GPT-5.6 Sol template', () => {
@@ -115,5 +150,16 @@ describe('applyCodexContextPolicy', () => {
       expect(catalog.find(model => model.id === id)?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
     }
     expect(catalog.find(model => model.id === 'gpt-5.4')).toBe(gpt54)
+  })
+
+  it('enables GPT-6.1 Sol context independently without mutating its template', () => {
+    const template = fakeModel('gpt-5.6-sol')
+    const models = [template]
+    const catalog = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true })
+    expect(catalog.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
+    for (const id of ['gpt-5.6-sol', CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_ASTRA_MODEL_ID]) {
+      expect(catalog.find(model => model.id === id)?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+    }
+    expect(catalog.find(model => model.id === template.id)).toBe(template)
   })
 })

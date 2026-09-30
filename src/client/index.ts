@@ -119,7 +119,7 @@ function decodeLlmSettings(value: unknown): LlmSettingsView | undefined {
   if (!isRecord(value)) return undefined
   const fields: Array<keyof LlmSettingsView> = [
     'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra',
-    'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna',
+    'gpt-6-astra', 'gpt-6-sol', 'gpt-6.1-sol', 'gpt-6-luna',
   ]
   if (!fields.every(field => typeof value[field] === 'boolean')) return undefined
   return {
@@ -128,6 +128,7 @@ function decodeLlmSettings(value: unknown): LlmSettingsView | undefined {
     'gpt-5.6-terra': value['gpt-5.6-terra'] as boolean,
     'gpt-6-astra': value['gpt-6-astra'] as boolean,
     'gpt-6-sol': value['gpt-6-sol'] as boolean,
+    'gpt-6.1-sol': value['gpt-6.1-sol'] as boolean,
     'gpt-6-luna': value['gpt-6-luna'] as boolean,
   }
 }

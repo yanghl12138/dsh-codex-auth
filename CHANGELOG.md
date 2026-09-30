@@ -5,7 +5,8 @@
 ### Fork feature updates
 
 - `feat`: Add GPT-6 Sol and Luna to the Codex route when missing from pi-ai; reject unsupported explicit GPT-6 `temperature`.
-- `feat`: Add independent 1M context switches for GPT-5.6 Luna/Sol/Terra and GPT-6 Astra/Sol/Luna, with a UI-only switch to toggle all six.
+- `feat`: Add GPT-6.1 Sol to the Codex route with model-specific pricing and reasoning controls, plus an independent default-off 1M context switch that preserves existing per-model preferences.
+- `feat`: Add independent 1M context switches for GPT-5.6 Luna/Sol/Terra, GPT-6 Astra/Sol/Luna, and GPT-6.1 Sol, with a UI-only switch to toggle all seven.
 - `compat`: Do not migrate the former global `codex-llm.longContextEnabled` value. Previously enabled 1M context must be re-enabled per model after upgrading.
 
 ## [0.3.3-rc.1] - 2026-09-10
