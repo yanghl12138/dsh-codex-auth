@@ -1,6 +1,6 @@
 # dsh-codex-auth — design record
 
-Status: **adapted in this unpublished working tree for DSH `0.1.5-rc.1`; Workspace Export remains disabled pending a policy-aware binary workspace-write API**.
+Status: **adapted for DSH `0.2.0-rc.2`; Workspace Export remains disabled pending a policy-aware binary workspace-write API**.
 
 The canonical project language lives in [`CONTEXT.md`](../CONTEXT.md). This document records implementation boundaries and the accepted design.
 
@@ -70,13 +70,13 @@ Login buttons continue to spawn the official `codex login` browser or device-cod
 
 With its default `llmEnabled: true`, the package owns exactly one `openai-codex` adapter route. An installer can set `llmEnabled: false` while retaining the shared Login State coordinator for Search and Image. `PiAiAdapter` continues to handle ordinary conversation streaming, function tools, reasoning replay, usage, cancellation, Portable summarization, and input attachment conversion; only opt-in manual or automatic Native Checkpoint generation uses the dedicated transport described below. A read-only LLM waterfall records exact Agent-loop request identity before Runtime projection so one automatic Codex Turn Continuation can be applied without replacing ordinary streaming.
 
-The independently live `codex-llm` settings namespace stores a default-off boolean for each supported 1M-context model: GPT-6 Astra, Sol, and Luna, GPT-6.1 Sol, plus GPT-5.6 Luna, Sol, and Terra. The GPT Auth Settings page offers individual switches and a derived aggregate switch that batch-updates all seven values without storing a global toggle. The policy wraps the generated pi-ai catalog without mutating it. When the installed catalog omits GPT-6 models, the wrapper prepends descriptors cloned from matching GPT-5.6 templates. Each enabled model receives a 1,000,000-token `contextWindow`; other descriptors are unchanged. The adapter registration republishes its unchanged route after a settings update so model consumers refresh metadata. This changes DSH token-pressure and compaction decisions; it does not add a backend request parameter or assert account entitlement.
+The `llm-codex-auth` Config Form stores seven default-off volatile model-ID booleans: GPT-6 Astra, Sol, and Luna, GPT-6.1 Sol, plus GPT-5.6 Luna, Sol, and Terra. The GPT Auth Settings page offers individual switches and a derived aggregate switch that updates all seven values without storing a global toggle. The policy overlays missing models from matching GPT-5.6 templates, preserving installed descriptors. Only enabled models' `contextWindow` changes: GPT-6/6.1 uses 872,000 tokens, GPT-5.6 uses 1,000,000. Loader volatile updates republish the route so model consumers refresh metadata. This changes DSH compaction decisions, not backend entitlement. See [policy sources](codex-model-policy.md).
 
-GPT-6.1 Sol uses the GPT-5.6 Sol template with its own pricing and Astra-style required reasoning: `off` is unavailable and `minimal` maps to `low`. Explicit `temperature` is rejected before credential resolution. Upgrading an existing six-model settings object preserves every saved value and defaults only the new `gpt-6.1-sol` field to false. The former global `longContextEnabled` field is still not migrated. Account access remains backend-owned; model registration does not grant entitlement.
+GPT-6.1 Sol uses the GPT-5.6 Sol template with its own pricing and required reasoning: `off` is unavailable, `minimal` maps to `low`, and unspecified effort defaults to Codex low. Explicit `temperature` is rejected before credential resolution. The seven fields preserve supplied per-model values and default omitted fields off. Old global and per-model `codex-llm` settings are not automatically migrated to the new entry-ID-based Config Form; users should re-enable their preferred models after upgrading from DSH 0.1.5. Branch `1.5.x` preserves the old compatibility baseline.
 
 The route defaults to SSE and exposes `sse`, `websocket`, and `auto` transport selection. `websocketConnectTimeoutMs` bounds the WebSocket handshake, while `timeoutMs` bounds the SSE response-header phase or the WebSocket message-idle interval; neither setting is presented as a whole-stream deadline, and `0` explicitly disables the corresponding timeout.
 
-Installed pi-ai `0.85.1` does not model Codex standalone search, Responses `web_search`, or image-generation result items. Search and image creation therefore do not modify or inject payloads into `PiAiAdapter`; they use dedicated capability plugins and the official Codex standalone endpoints.
+Installed pi-ai `0.87.1` does not model Codex standalone search, Responses `web_search`, or image-generation result items. Search and image creation therefore do not modify or inject payloads into `PiAiAdapter`; they use dedicated capability plugins and the official Codex standalone endpoints.
 
 ## Dual Checkpoint compaction
 
@@ -206,13 +206,13 @@ The image loader reads attachments through the public session-authorized API, cr
 The independently navigable section keeps the name **GPT Auth** and the stock icon fallback. It contains four cards:
 
 1. **Login** — connection state, locally decoded plan, weekly remaining balance/reset time, and browser/device login actions when disconnected;
-2. **LLM Context** — the live, default-off GPT-6 / GPT-5.6 1M context policy;
+2. **LLM Context** — the live, default-off model-specific GPT-6/6.1 / GPT-5.6 long-context policy;
 3. **Web Search** — enabled state, mode, context size, fallback model, and output budget;
 4. **Image Creation** — enabled state, plan eligibility, model-scope note, and default count/size/quality/background.
 
 Search and Image register live settings under the plugin's DSH settings namespace. Both default enabled after installation. Disabling one immediately removes its model capability for current and future Agents without restarting. Logged-out cards are unavailable rather than probing capability endpoints.
 
-DSH `0.1.5-rc.1` is the minimum and tested settings baseline. The Host installs each namespace through `ctx.settings.installSection()`, while the browser face owns one top-level `settings.section` and binds `codex-llm`, `codex-search`, and `codex-image` through `ctx.settingsScope`. The client registers that privileged section only when `ConnectionHandle.isLoopback` is true; image result views remain available independently. Historically, rc7 was the first Host baseline that exposed plugin namespaces to Web settings, but it is no longer in this package's supported dependency family.
+DSH `0.2.0-rc.2` is the tested settings baseline. The Host declares live Config fields with `.volatile()` and disables auto-generated forms through `ctx.settings.configure({ auto: false }, ctx.fiber)`. The browser owns one top-level `settings.section` and binds `llm-codex-auth`, `codex-search`, and `codex-image` through `ctx.configForms`. The privileged section requires `ConnectionHandle.isLoopback`; image result views remain available independently. Writes persist in the active profile's Cordis patch.
 
 The Login card combines locally verified connection state with a best-effort, value-free account-usage view. When a usable login exists, the Host requests the fixed `/backend-api/wham/usage` endpoint with a ten-second Host deadline, identifies the seven-day window by `limit_window_seconds`, and sends only plan/balance/reset facts to the browser. Cancellation, auth failure, malformed data, a missing weekly window, or upstream failure degrades to unknown values. The UI performs no test search or test generation. Compatibility and private-endpoint disclosures live in repository documentation, not in the settings cards.
 

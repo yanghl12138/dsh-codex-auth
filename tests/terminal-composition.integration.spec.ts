@@ -4,6 +4,7 @@ import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
 import { apply as applyCodex, type Config } from '../src/index.ts'
+import { createDefaultCodexLlmSettings } from '../src/codex-context.ts'
 
 const contexts: Context[] = []
 
@@ -15,6 +16,7 @@ afterEach(async () => {
 
 function codexConfig(): Config {
   return {
+    ...createDefaultCodexLlmSettings(),
     llmEnabled: false,
     authJsonPath: '/nonexistent/auth.json',
     credentialRef: 'CODEX_CHATGPT_TOKEN',

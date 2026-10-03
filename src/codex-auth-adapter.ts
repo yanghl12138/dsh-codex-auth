@@ -31,7 +31,7 @@ import type {
 } from '@earendil-works/pi-ai'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
-import { LlmError, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
+import { LlmError, ReasoningEffortId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, PreparedAdapterCall, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
@@ -362,7 +362,7 @@ export class CodexAuthAdapter extends PiAiAdapter {
       stream: (options: GenerateOptions) => validateCodexStream(options, () => codexTurnStateContinuity.withAdapterGeneration(
         generation,
         () => {
-          const preparedOptions = codexNativeCompactionCoordinator.preparePortableCall(options)
+          const preparedOptions = codexNativeCompactionCoordinator.preparePortableCall(withCodexModelDefaults(options))
           return this.nativeReplay.stream(preparedOptions, prepared.stream, replayGeneration)
         },
       )),
@@ -372,10 +372,17 @@ export class CodexAuthAdapter extends PiAiAdapter {
   override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const generation = this.adapterGeneration
     return validateCodexStream(options, () => codexTurnStateContinuity.withAdapterGeneration(generation, () => {
-      const preparedOptions = codexNativeCompactionCoordinator.preparePortableCall(options)
+      const preparedOptions = codexNativeCompactionCoordinator.preparePortableCall(withCodexModelDefaults(options))
       return this.nativeReplay.stream(preparedOptions, detached => super.stream(detached))
     }))
   }
+}
+
+/** The Codex CLI defaults GPT-6.1 Sol to low, unlike the public API default. */
+function withCodexModelDefaults(options: GenerateOptions): GenerateOptions {
+  return options.model === CODEX_GPT_6_1_SOL_MODEL_ID && options.reasoningEffort === undefined
+    ? { ...options, reasoningEffort: ReasoningEffortId('low') }
+    : options
 }
 
 /** Reject unsupported model options before auth resolution or request-state preparation. */
@@ -389,16 +396,11 @@ async function* validateCodexStream(
       'UNSUPPORTED_OPTION',
     )
   }
-  if (options.model === CODEX_GPT_6_1_SOL_MODEL_ID && options.temperature !== undefined) {
-    throw new LlmError(
-      'GPT-6.1 Sol does not support temperature; remove temperature from the model request',
-      'UNSUPPORTED_OPTION',
-    )
-  }
-  if ((options.model === CODEX_GPT_6_SOL_MODEL_ID || options.model === CODEX_GPT_6_LUNA_MODEL_ID)
+  if ((options.model === CODEX_GPT_6_SOL_MODEL_ID || options.model === CODEX_GPT_6_LUNA_MODEL_ID
+    || options.model === CODEX_GPT_6_1_SOL_MODEL_ID)
     && options.temperature !== undefined) {
     throw new LlmError(
-      'GPT-6 Sol and Luna do not support temperature with the effective reasoning effort; remove temperature from the model request',
+      'GPT-6 Sol, Luna, and GPT-6.1 Sol do not support temperature on this Codex route; remove temperature from the model request',
       'UNSUPPORTED_OPTION',
     )
   }

@@ -26,13 +26,15 @@ import { CodexAuthService, type CodexAuthServiceOptions } from '../src/codex-aut
 import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
+  CODEX_GPT_6_LONG_CONTEXT_WINDOW,
   CODEX_LONG_CONTEXT_MODEL_IDS,
   CODEX_LONG_CONTEXT_WINDOW,
   CODEX_STANDARD_CONTEXT_WINDOW,
   createDefaultCodexLlmSettings,
   CodexLlmSettingsConfig,
 } from '../src/codex-context.ts'
-import { Config as PluginConfig, type Config as PluginConfigView } from '../src/index.ts'
+import { apply as applyCodex, Config as PluginConfig, type Config as PluginConfigView } from '../src/index.ts'
+import { liveValue } from '../src/volatile-config.ts'
 
 /** Captures the options each CodexAuthAdapter hands to the PiAiAdapter base. */
 const piAiAdapterCalls: PiAiAdapterOptions[] = []
@@ -280,6 +282,18 @@ describe('Auth / LLM row configuration', () => {
     expect(parse({ 'gpt-6-sol': true })).toEqual({ ...createDefaultCodexLlmSettings(), 'gpt-6-sol': true })
   })
 
+  it('exposes seven independent volatile fields through the DSH Config Form', () => {
+    const parse = PluginConfig as unknown as (input: Partial<PluginConfigView>) => PluginConfigView
+    const defaults = parse({})
+    const enabled = parse({ 'gpt-6.1-sol': true, 'gpt-5.6-sol': true })
+    for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
+      expect(typeof defaults[id]).toBe('object')
+      expect(liveValue(defaults[id])).toBe(false)
+      expect(liveValue(enabled[id])).toBe(id === 'gpt-6.1-sol' || id === 'gpt-5.6-sol')
+    }
+    expect(() => parse({ 'gpt-6.1-sol': 'true' } as unknown as Partial<PluginConfigView>)).toThrow()
+  })
+
   it('preserves saved six-model settings while defaulting only GPT-6.1 Sol off', () => {
     const parse = CodexLlmSettingsConfig as unknown as (input: Record<string, unknown>) => Record<string, boolean>
     const saved = {
@@ -307,6 +321,41 @@ describe('Auth / LLM row configuration', () => {
 })
 
 describe('CodexAuthAdapter route profile', () => {
+  it('reads per-model volatile values live and republishes the route on Loader updates', async () => {
+    const ctx = new Context()
+    const replace = vi.fn()
+    ctx.provide('llm', {
+      listProviders: () => [],
+      registerAdapter: () => ({ replace }),
+    })
+    const parse = PluginConfig as unknown as (input: Partial<PluginConfigView>) => PluginConfigView
+    const config = parse({ authJsonPath: '/nonexistent/auth.json', codexCommand: 'definitely-not-codex' })
+    let enabled = false
+    config['gpt-6.1-sol'] = { get: () => enabled } as PluginConfigView['gpt-6.1-sol']
+    try {
+      applyCodex(ctx, config)
+      const profile = piAiAdapterCalls.at(-1)?.profiles().get('openai-codex')
+      const getModels = profile?.piProvider?.getModels
+      if (getModels === undefined) throw new Error('missing codex model provider')
+      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
+        .toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+      enabled = true
+      ctx.emit('loader/volatile-update', [['gpt-6.1-sol']])
+      expect(replace).toHaveBeenCalledExactlyOnceWith(['openai-codex'])
+      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
+        .toBe(CODEX_GPT_6_LONG_CONTEXT_WINDOW)
+      expect(getModels().find(model => model.id === 'gpt-6-sol')?.contextWindow)
+        .toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+      enabled = false
+      ctx.emit('loader/volatile-update', [['gpt-6.1-sol']])
+      expect(replace).toHaveBeenCalledTimes(2)
+      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
+        .toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it.each([
     ['inactive', false],
     ['active', true],
@@ -395,7 +444,9 @@ describe('CodexAuthAdapter route profile', () => {
     contextSettings = Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, true])) as typeof contextSettings
     const long = getModels()
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
-      expect(long.find(model => model.id === id)?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
+      expect(long.find(model => model.id === id)?.contextWindow).toBe(
+        id.startsWith('gpt-5.6-') ? CODEX_LONG_CONTEXT_WINDOW : CODEX_GPT_6_LONG_CONTEXT_WINDOW,
+      )
     }
     expect(long.find(model => model.id === 'gpt-5.4')).toBe(unchanged)
     expect(standard.find(model => model.id === 'gpt-5.6-sol')?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
@@ -405,7 +456,7 @@ describe('CodexAuthAdapter route profile', () => {
     })
     contextSettings = { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true }
     const solOnly = getModels()
-    expect(solOnly.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
+    expect(solOnly.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow).toBe(CODEX_GPT_6_LONG_CONTEXT_WINDOW)
     expect(solOnly.find(model => model.id === 'gpt-6-sol')?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
   })
 

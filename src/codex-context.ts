@@ -2,19 +2,21 @@
 import type { Api, Model } from '@earendil-works/pi-ai'
 import z from '@deepseek-ai/schemastery'
 
-/** Durable settings namespace for Codex LLM route preferences. */
+/** Legacy namespace; DSH 0.2 uses the llm-codex-auth entry's Config Form. */
 export const CODEX_LLM_SETTINGS_NAMESPACE = 'codex-llm'
 /** Conservative Codex default that avoids automatic long-context usage. */
 export const CODEX_STANDARD_CONTEXT_WINDOW = 272_000
-/** Explicit opt-in budget matching Codex's documented one-million-token configuration. */
+/** Legacy opt-in budget for the supported GPT-5.6 family. */
 export const CODEX_LONG_CONTEXT_WINDOW = 1_000_000
+/** GPT-6 Codex OAuth maximum, distinct from public API total-context limits. */
+export const CODEX_GPT_6_LONG_CONTEXT_WINDOW = 872_000
 /** GPT-6 model ids exposed on the Codex route. */
 export const CODEX_GPT_6_ASTRA_MODEL_ID = 'gpt-6-astra'
 export const CODEX_GPT_6_SOL_MODEL_ID = 'gpt-6-sol'
 export const CODEX_GPT_6_1_SOL_MODEL_ID = 'gpt-6.1-sol'
 export const CODEX_GPT_6_LUNA_MODEL_ID = 'gpt-6-luna'
 
-/** Models that may report the opt-in 1M context budget. */
+/** Models with a model-specific opt-in long-context budget. */
 export const CODEX_LONG_CONTEXT_MODEL_IDS = [
   'gpt-5.6-luna',
   'gpt-5.6-sol',
@@ -47,18 +49,8 @@ function gpt6Cost(input: number, output: number, cacheRead: number, cacheWrite: 
   }
 }
 
-const GPT_6_ASTRA_THINKING_LEVEL_MAP = {
+const GPT_6_THINKING_LEVEL_MAP = {
   off: null,
-  minimal: 'low',
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
-  xhigh: 'xhigh',
-  max: 'max',
-} as const satisfies NonNullable<Model<Api>['thinkingLevelMap']>
-
-/** DSH leaves `off` unset on the wire; minimal starts at low. */
-const GPT_6_SOL_LUNA_THINKING_LEVEL_MAP = {
   minimal: 'low',
   low: 'low',
   medium: 'medium',
@@ -73,30 +65,39 @@ const GPT_6_MODELS = [
     templateId: 'gpt-5.6-sol',
     name: 'GPT-6 Astra',
     cost: gpt6Cost(10, 50, 1, 12.5),
-    thinkingLevelMap: GPT_6_ASTRA_THINKING_LEVEL_MAP,
+    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
   },
   {
     id: CODEX_GPT_6_SOL_MODEL_ID,
     templateId: 'gpt-5.6-sol',
     name: 'GPT-6 Sol',
     cost: gpt6Cost(2, 10, 0.2, 2.5),
-    thinkingLevelMap: GPT_6_SOL_LUNA_THINKING_LEVEL_MAP,
+    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
   },
   {
     id: CODEX_GPT_6_1_SOL_MODEL_ID,
     templateId: 'gpt-5.6-sol',
     name: 'GPT-6.1 Sol',
+    // Public API price estimate; not a ChatGPT subscription quota conversion.
     cost: gpt6Cost(2, 10, 0.1, 2.5),
-    thinkingLevelMap: GPT_6_ASTRA_THINKING_LEVEL_MAP,
+    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
   },
   {
     id: CODEX_GPT_6_LUNA_MODEL_ID,
     templateId: 'gpt-5.6-luna',
     name: 'GPT-6 Luna',
     cost: gpt6Cost(0.1, 0.5, 0.01, 0.125),
-    thinkingLevelMap: GPT_6_SOL_LUNA_THINKING_LEVEL_MAP,
+    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
   },
 ] as const
+
+const GPT_6_MODEL_IDS = new Set<string>(GPT_6_MODELS.map(model => model.id))
+
+/** Codex catalog source and API estimate provenance: docs/codex-model-policy.md. */
+export function codexLongContextWindow(modelId: string): number | undefined {
+  if (!LONG_CONTEXT_MODEL_IDS.has(modelId)) return undefined
+  return GPT_6_MODEL_IDS.has(modelId) ? CODEX_GPT_6_LONG_CONTEXT_WINDOW : CODEX_LONG_CONTEXT_WINDOW
+}
 
 /** Independently live settings that affect the openai-codex model catalog. */
 export type CodexLlmSettings = Record<typeof CODEX_LONG_CONTEXT_MODEL_IDS[number], boolean>
@@ -123,9 +124,12 @@ export function applyCodexContextPolicy(
 ): readonly Model<Api>[] {
   const catalog = ensureCodexCatalogModels(models)
   if (!CODEX_LONG_CONTEXT_MODEL_IDS.some(id => settings[id])) return catalog
-  return catalog.map(model => LONG_CONTEXT_MODEL_IDS.has(model.id) && settings[model.id as keyof CodexLlmSettings]
-    ? { ...model, contextWindow: CODEX_LONG_CONTEXT_WINDOW }
-    : model)
+  return catalog.map(model => {
+    const contextWindow = codexLongContextWindow(model.id)
+    return contextWindow !== undefined && settings[model.id as keyof CodexLlmSettings]
+      ? { ...model, contextWindow }
+      : model
+  })
 }
 
 function ensureCodexCatalogModels(models: readonly Model<Api>[]): readonly Model<Api>[] {

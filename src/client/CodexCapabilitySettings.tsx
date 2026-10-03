@@ -1,9 +1,9 @@
 /** Unified four-card settings surface for the Codex Capability Bundle. */
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
-  Button, IconChevronDownOutline14, IconRefreshOutline16, StateDot,
+  Button, IconChevronDownOutlineMedium, IconRefreshOutlineMedium, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CodexAuthRpcClient, CodexAuthStatusView, CodexUsageView } from '../rpc-contract.ts'
 import type { CodexAuthKey } from './locales.ts'
@@ -52,9 +52,9 @@ export interface CodexCapabilitySettingsProps {
   rpc: CodexAuthRpcClient
   t: (key: CodexAuthKey) => string
   subscribe: (listener: () => void) => () => void
-  llmScope: SettingsScope<LlmSettingsView>
-  searchScope: SettingsScope<SearchSettingsView>
-  imageScope: SettingsScope<ImageSettingsView>
+  llmScope: ConfigForm<LlmSettingsView>
+  searchScope: ConfigForm<SearchSettingsView>
+  imageScope: ConfigForm<ImageSettingsView>
 }
 
 type LoadState = 'loading' | 'ready' | 'error'
@@ -181,7 +181,7 @@ export function CodexCapabilitySettings({
               className={`${classes.compactButton} ${classes.refresh}`}
               icon={(
                 <span className={refreshBusy ? classes.spinIcon : classes.staticIcon}>
-                  <IconRefreshOutline16 size={16} />
+                  <IconRefreshOutlineMedium size={16} />
                 </span>
               )}
               disabled={refreshBusy}
@@ -379,7 +379,7 @@ function DisclosureButton({
       onClick={onClick}
     >
       <span className={classes.disclosureIcon} data-expanded={expanded} aria-hidden="true">
-        <IconChevronDownOutline14 size={14} />
+        <IconChevronDownOutlineMedium size={14} />
       </span>
     </Button>
   )
@@ -545,7 +545,7 @@ function SettingsState<T>({
   t,
   children,
 }: {
-  snapshot: SettingsScopeSnapshot<T>
+  snapshot: ConfigFormSnapshot<T>
   t: CodexCapabilitySettingsProps['t']
   children: ReactNode
 }): ReactNode {
@@ -573,8 +573,8 @@ function SearchControls({
   unavailable,
   onError,
 }: {
-  scope: SettingsScope<SearchSettingsView>
-  snapshot: SettingsScopeSnapshot<SearchSettingsView>
+  scope: ConfigForm<SearchSettingsView>
+  snapshot: ConfigFormSnapshot<SearchSettingsView>
   t: CodexCapabilitySettingsProps['t']
   unavailable: boolean
   onError: (message: string | null) => void
@@ -611,8 +611,8 @@ function ImageControls({
   unavailable,
   onError,
 }: {
-  scope: SettingsScope<ImageSettingsView>
-  snapshot: SettingsScopeSnapshot<ImageSettingsView>
+  scope: ConfigForm<ImageSettingsView>
+  snapshot: ConfigFormSnapshot<ImageSettingsView>
   t: CodexCapabilitySettingsProps['t']
   unavailable: boolean
   onError: (message: string | null) => void
@@ -711,14 +711,14 @@ function Control({ label, children }: { label: string; children: ReactNode }): R
   )
 }
 
-function useScope<T>(scope: SettingsScope<T>): SettingsScopeSnapshot<T> {
+function useScope<T>(scope: ConfigForm<T>): ConfigFormSnapshot<T> {
   const subscribe = useCallback((listener: () => void) => scope.subscribe(listener), [scope])
   const getSnapshot = useCallback(() => scope.getSnapshot(), [scope])
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 function writer<T>(
-  scope: SettingsScope<T>,
+  scope: ConfigForm<T>,
   onError: (message: string | null) => void,
   t: CodexCapabilitySettingsProps['t'],
 ): (field: string, value: unknown) => Promise<void> {
@@ -729,7 +729,7 @@ function writer<T>(
 }
 
 async function writeLongContextFields(
-  scope: SettingsScope<LlmSettingsView>,
+  scope: ConfigForm<LlmSettingsView>,
   onError: (message: string | null) => void,
   t: CodexCapabilitySettingsProps['t'],
   enabled: boolean,

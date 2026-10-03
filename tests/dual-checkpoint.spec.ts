@@ -361,7 +361,7 @@ function closedConversation(
 ): Session {
   const session = Session.create(SessionId(id))
   if (system !== undefined) session.append('system/message', {
-    turn: 1, step: 1, message: createSystemMessage(system, 'test'),
+    turn: 1, step: 1, message: createSystemMessage(system),
   }, { surfaceOp: 'append' })
   for (let turn = 1; turn <= 2; turn += 1) {
     session.append('turn/start', { turn })
@@ -638,6 +638,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
       'model',
       'parallel_tool_calls',
       'prompt_cache_key',
+      'reasoning',
       'store',
       'stream',
       'text',
@@ -2391,7 +2392,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
         accountId: 'acct_model_ineligible_fixture',
         compactionConfig: {
           summarizationProvider: 'openai-codex',
-          summarizationModel: 'gpt-5.4',
+          summarizationModel: 'gpt-5.6-luna',
         },
       } satisfies DualHostOptions,
     },

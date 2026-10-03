@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentType } from 'react'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { CodexImageSettings } from '../src/image.ts'
 import type { CodexSearchSettings } from '../src/search.ts'
@@ -40,9 +40,9 @@ const IMAGE: CodexImageSettings = {
 
 function fakeScope<T>(
   initial: T,
-  status: SettingsScopeSnapshot<T>['status'] = 'ready',
-): { scope: SettingsScope<T>; set: ReturnType<typeof vi.fn> } {
-  let snapshot: SettingsScopeSnapshot<T> = {
+  status: ConfigFormSnapshot<T>['status'] = 'ready',
+): { scope: ConfigForm<T>; set: ReturnType<typeof vi.fn> } {
+  let snapshot: ConfigFormSnapshot<T> = {
     status,
     value: initial,
     base: initial,
@@ -55,20 +55,22 @@ function fakeScope<T>(
   const set = vi.fn(async (field: string, value: unknown) => {
     snapshot = { ...snapshot, value: { ...snapshot.value, [field]: value } }
     for (const listener of listeners) listener()
+    return true
   })
   const scope = {
     getSnapshot() {
-      if (this !== scope) throw new Error('getSnapshot lost its SettingsScope receiver')
+      if (this !== scope) throw new Error('getSnapshot lost its ConfigForm receiver')
       return snapshot
     },
     subscribe(listener: () => void) {
-      if (this !== scope) throw new Error('subscribe lost its SettingsScope receiver')
+      if (this !== scope) throw new Error('subscribe lost its ConfigForm receiver')
       listeners.add(listener)
       return () => { listeners.delete(listener) }
     },
     set,
-    unset: vi.fn(async () => {}),
-  } satisfies SettingsScope<T>
+    unset: vi.fn(async () => true),
+    mutate: vi.fn(async () => true),
+  } satisfies ConfigForm<T>
   return { set, scope }
 }
 
@@ -148,18 +150,18 @@ describe('Codex Capability Bundle settings', () => {
     expect(screen.queryByText('/Users/alice/.codex/auth.json')).toBeNull()
     expect(screen.getByText(/no token value is ever sent to the Web client/i)).toBeTruthy()
 
-    fireEvent.click(screen.getByLabelText('Enable or disable 1M context for all models'))
+    fireEvent.click(screen.getByLabelText('Enable or disable long context for all models'))
     await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(CODEX_LONG_CONTEXT_MODEL_IDS.length))
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
       expect(llm.set).toHaveBeenCalledWith(id, true)
     }
-    expect((screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByText('1M enabled for 7/7 models')).toBeTruthy()
+    expect((screen.getByLabelText('Enable or disable long context for all models') as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByText('Long context enabled for 7/7 models')).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('GPT-6 Sol'))
     await waitFor(() => expect(llm.set).toHaveBeenCalledWith('gpt-6-sol', false))
-    expect((screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement).indeterminate).toBe(true)
-    expect(screen.getByText('1M enabled for 6/7 models')).toBeTruthy()
+    expect((screen.getByLabelText('Enable or disable long context for all models') as HTMLInputElement).indeterminate).toBe(true)
+    expect(screen.getByText('Long context enabled for 6/7 models')).toBeTruthy()
 
     const expandSearch = screen.getByRole('button', { name: 'Expand Web Search settings' })
     const expandImage = screen.getByRole('button', { name: 'Expand Image Creation settings' })
@@ -181,12 +183,12 @@ describe('Codex Capability Bundle settings', () => {
     render(<CodexCapabilitySettings rpc={rpc(authStatus({ planType: 'plus' }))} t={t} subscribe={subscribe}
       llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
     await screen.findByText('Active')
-    expect(screen.getByText('1M enabled for 0/7 models')).toBeTruthy()
+    expect(screen.getByText('Long context enabled for 0/7 models')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('GPT-6.1 Sol'))
     await waitFor(() => expect(llm.set).toHaveBeenCalledExactlyOnceWith('gpt-6.1-sol', true))
-    const aggregate = screen.getByLabelText('Enable or disable 1M context for all models') as HTMLInputElement
+    const aggregate = screen.getByLabelText('Enable or disable long context for all models') as HTMLInputElement
     expect(aggregate.indeterminate).toBe(true)
-    expect(screen.getByText('1M enabled for 1/7 models')).toBeTruthy()
+    expect(screen.getByText('Long context enabled for 1/7 models')).toBeTruthy()
     llm.set.mockClear()
     fireEvent.click(aggregate)
     await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(7))
@@ -198,7 +200,7 @@ describe('Codex Capability Bundle settings', () => {
     await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(7))
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) expect(llm.set).toHaveBeenCalledWith(id, false)
     expect(aggregate.checked).toBe(false)
-    expect(screen.getByText('1M enabled for 0/7 models')).toBeTruthy()
+    expect(screen.getByText('Long context enabled for 0/7 models')).toBeTruthy()
   })
 
   it('announces loading settings while keeping skeleton rows decorative', async () => {
@@ -317,7 +319,7 @@ describe('client plugin registration', () => {
   it('registers one settings row and keyed views for both image tools', () => {
     const registered: Array<Record<string, unknown>> = []
     const scopes = new Map([
-      ['codex-llm', fakeScope(LLM).scope],
+      ['llm-codex-auth', fakeScope(LLM).scope],
       ['codex-search', fakeScope(SEARCH).scope],
       ['codex-image', fakeScope(IMAGE).scope],
     ])
@@ -336,26 +338,12 @@ describe('client plugin registration', () => {
           return () => {}
         },
       },
-      settingsScope: {
-        bind: ({ namespace, decode }: { namespace: string; decode: (value: unknown) => unknown }) => {
-          if (namespace === 'codex-llm') {
-            expect(decode(LLM)).toEqual(LLM)
-            expect(decode({ ...LLM, 'gpt-6.1-sol': true })).toEqual({ ...LLM, 'gpt-6.1-sol': true })
-            expect(decode({ ...LLM, 'gpt-6.1-sol': 'true' })).toBeUndefined()
-          }
-          if (namespace === 'codex-image') {
-            const extended = { ...IMAGE, model: 'gpt-image-2.5-flare', quality: 'max', size: '1536x864' }
-            expect(decode(extended)).toEqual(extended)
-            expect(decode({ ...extended, size: '256x256' })).toBeUndefined()
-          }
-          return scopes.get(namespace)
-        },
-      },
+      configForms: { get: (entryId: string) => scopes.get(entryId) },
     }
 
     apply(ctx as never)
 
-    expect(inject).toEqual(expect.arrayContaining(['remote', 'settingsScope', 'sessions']))
+    expect(inject).toEqual(expect.arrayContaining(['remote', 'configForms', 'sessions']))
     expect(registered).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'settings.section', id: 'codex-auth' }),
       expect.objectContaining({ name: 'tool.call.toolview', key: 'generate_image' }),

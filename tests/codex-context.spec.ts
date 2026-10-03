@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest'
 import {
   applyCodexContextPolicy,
   CODEX_GPT_6_ASTRA_MODEL_ID,
+  CODEX_GPT_6_1_SOL_MODEL_ID,
+  CODEX_GPT_6_LONG_CONTEXT_WINDOW,
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
-  CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_LONG_CONTEXT_MODEL_IDS,
   CODEX_LONG_CONTEXT_WINDOW,
   CODEX_STANDARD_CONTEXT_WINDOW,
@@ -74,6 +75,8 @@ describe('applyCodexContextPolicy', () => {
         tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.4, cacheWrite: 5 }] }],
       [CODEX_GPT_6_LUNA_MODEL_ID, luna, { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125,
         tiers: [{ inputTokensAbove: 272_000, input: 0.2, output: 0.75, cacheRead: 0.02, cacheWrite: 0.25 }] }],
+      [CODEX_GPT_6_1_SOL_MODEL_ID, sol, { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5,
+        tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5 }] }],
     ] as const) {
       const model = catalog.find(item => item.id === id)
       expect(model).toMatchObject({
@@ -86,7 +89,7 @@ describe('applyCodexContextPolicy', () => {
         maxTokens: 128_000,
         compat: template.compat,
         cost,
-        thinkingLevelMap: { minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
+        thinkingLevelMap: { off: null, minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
       })
     }
   })
@@ -124,7 +127,7 @@ describe('applyCodexContextPolicy', () => {
     expect(catalog.find(model => model.id === CODEX_GPT_6_ASTRA_MODEL_ID)).toBe(astra)
     expect(catalog.find(model => model.id === CODEX_GPT_6_LUNA_MODEL_ID)).toBe(luna)
     expect(catalog.filter(model => model.id === CODEX_GPT_6_SOL_MODEL_ID)).toHaveLength(1)
-    const allInstalled = [astra, luna, fakeModel(CODEX_GPT_6_SOL_MODEL_ID)]
+    const allInstalled = [astra, luna, fakeModel(CODEX_GPT_6_SOL_MODEL_ID), fakeModel(CODEX_GPT_6_1_SOL_MODEL_ID)]
     expect(applyCodexContextPolicy(allInstalled, createDefaultCodexLlmSettings())).toBe(allInstalled)
   })
 
@@ -135,12 +138,27 @@ describe('applyCodexContextPolicy', () => {
     expect(catalog.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(installed)
   })
 
+  it('preserves every installed descriptor field except opt-in capacity and does not mutate inputs', () => {
+    const installed = fakeModel(CODEX_GPT_6_1_SOL_MODEL_ID, {
+      name: 'Provider-owned Sol', contextWindow: 300_000, maxTokens: 64_000,
+      cost: { input: 7, output: 8, cacheRead: 1, cacheWrite: 2 },
+      thinkingLevelMap: { off: null, low: 'low', max: 'max' },
+    })
+    Object.freeze(installed)
+    const models = Object.freeze([installed])
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
+    const [long] = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true })
+    expect(long).toEqual({ ...installed, contextWindow: CODEX_GPT_6_LONG_CONTEXT_WINDOW })
+    expect(installed.contextWindow).toBe(300_000)
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())[0]).toBe(installed)
+  })
+
   it('does not invent GPT-6 Astra without a GPT-5.6 Sol template', () => {
     const models = [fakeModel('gpt-5.4'), fakeModel('gpt-5.6-terra')]
     expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
   })
 
-  it('applies each 1M budget independently to the known long-context family', () => {
+  it('applies each long-context budget independently to the known family', () => {
     const gpt54 = fakeModel('gpt-5.4')
     const models = [fakeModel('gpt-5.6-luna'), fakeModel('gpt-5.6-sol'), fakeModel('gpt-5.6-terra'), gpt54]
     const settings = { ...createDefaultCodexLlmSettings(), 'gpt-5.6-sol': true }
@@ -156,7 +174,7 @@ describe('applyCodexContextPolicy', () => {
     const template = fakeModel('gpt-5.6-sol')
     const models = [template]
     const catalog = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true })
-    expect(catalog.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
+    expect(catalog.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow).toBe(CODEX_GPT_6_LONG_CONTEXT_WINDOW)
     for (const id of ['gpt-5.6-sol', CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_ASTRA_MODEL_ID]) {
       expect(catalog.find(model => model.id === id)?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
     }

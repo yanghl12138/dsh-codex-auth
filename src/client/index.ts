@@ -13,7 +13,6 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { createCodexAuthRpcClient } from '../rpc-contract.ts'
-import { IMAGE_QUALITIES, isImageSize } from '../image-options.ts'
 import { CodexCapabilitySettings } from './CodexCapabilitySettings.tsx'
 import type {
   CodexCapabilitySettingsProps, ImageSettingsView, LlmSettingsView, SearchSettingsView,
@@ -37,12 +36,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 const NS = 'settings.codexAuth'
-const LLM_NAMESPACE = 'codex-llm'
+const LLM_NAMESPACE = 'llm-codex-auth'
 const SEARCH_NAMESPACE = 'codex-search'
 const IMAGE_NAMESPACE = 'codex-image'
 
 /** Required browser services, including session-authorized attachment reads. */
-export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope', 'sessions']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'configForms', 'sessions']
 
 /** Register the four-card settings section and keyed image result renderers. */
 export function apply(ctx: ClientContext): void {
@@ -65,18 +64,9 @@ export function apply(ctx: ClientContext): void {
   if (connection.isLoopback) {
     const rpc = createCodexAuthRpcClient(connection.rpc)
     const t = ctx.locale.bind(NS) as CodexCapabilitySettingsProps['t']
-    const llmScope = ctx.settingsScope.bind<LlmSettingsView>({
-      namespace: LLM_NAMESPACE,
-      decode: decodeLlmSettings,
-    })
-    const searchScope = ctx.settingsScope.bind<SearchSettingsView>({
-      namespace: SEARCH_NAMESPACE,
-      decode: decodeSearchSettings,
-    })
-    const imageScope = ctx.settingsScope.bind<ImageSettingsView>({
-      namespace: IMAGE_NAMESPACE,
-      decode: decodeImageSettings,
-    })
+    const llmScope = ctx.configForms.get<LlmSettingsView>(LLM_NAMESPACE)
+    const searchScope = ctx.configForms.get<SearchSettingsView>(SEARCH_NAMESPACE)
+    const imageScope = ctx.configForms.get<ImageSettingsView>(IMAGE_NAMESPACE)
     ctx.slots.inject('settings.section', () => ctx.slots.register({
       name: 'settings.section',
       id: 'codex-auth',
@@ -113,68 +103,4 @@ function imageToolView(imageUrls: SessionImageUrls): (props: LocalizedToolViewPr
     )
     return createElement(CodexImageToolView, { block: props.block, loadImage, t: props.t })
   }
-}
-
-function decodeLlmSettings(value: unknown): LlmSettingsView | undefined {
-  if (!isRecord(value)) return undefined
-  const fields: Array<keyof LlmSettingsView> = [
-    'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra',
-    'gpt-6-astra', 'gpt-6-sol', 'gpt-6.1-sol', 'gpt-6-luna',
-  ]
-  if (!fields.every(field => typeof value[field] === 'boolean')) return undefined
-  return {
-    'gpt-5.6-luna': value['gpt-5.6-luna'] as boolean,
-    'gpt-5.6-sol': value['gpt-5.6-sol'] as boolean,
-    'gpt-5.6-terra': value['gpt-5.6-terra'] as boolean,
-    'gpt-6-astra': value['gpt-6-astra'] as boolean,
-    'gpt-6-sol': value['gpt-6-sol'] as boolean,
-    'gpt-6.1-sol': value['gpt-6.1-sol'] as boolean,
-    'gpt-6-luna': value['gpt-6-luna'] as boolean,
-  }
-}
-
-function decodeSearchSettings(value: unknown): SearchSettingsView | undefined {
-  if (!isRecord(value)
-    || typeof value.enabled !== 'boolean'
-    || !oneOf(value.mode, ['live', 'cached', 'indexed'])
-    || !oneOf(value.contextSize, ['low', 'medium', 'high'])
-    || typeof value.fallbackModel !== 'string'
-    || !positiveInteger(value.maxOutputTokens)) return undefined
-  return {
-    enabled: value.enabled,
-    mode: value.mode,
-    contextSize: value.contextSize,
-    fallbackModel: value.fallbackModel,
-    maxOutputTokens: value.maxOutputTokens,
-  }
-}
-
-function decodeImageSettings(value: unknown): ImageSettingsView | undefined {
-  if (!isRecord(value)
-    || typeof value.enabled !== 'boolean'
-    || typeof value.model !== 'string'
-    || !positiveInteger(value.n) || value.n > 10
-    || !isImageSize(value.size)
-    || !oneOf(value.quality, IMAGE_QUALITIES)
-    || !oneOf(value.background, ['auto', 'opaque', 'transparent'])) return undefined
-  return {
-    enabled: value.enabled,
-    model: value.model,
-    n: value.n,
-    size: value.size,
-    quality: value.quality,
-    background: value.background,
-  }
-}
-
-function oneOf<const T extends string>(value: unknown, choices: readonly T[]): value is T {
-  return typeof value === 'string' && choices.includes(value as T)
-}
-
-function positiveInteger(value: unknown): value is number {
-  return Number.isSafeInteger(value) && (value as number) > 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

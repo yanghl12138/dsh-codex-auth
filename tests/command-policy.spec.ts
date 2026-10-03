@@ -2,6 +2,7 @@ import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply as applyCodex, type Config } from '../src/index.ts'
+import { createDefaultCodexLlmSettings } from '../src/codex-context.ts'
 import { ACCOUNT_COMMAND_DENIED_MESSAGE } from '../src/loopback-rpc.ts'
 
 const contexts: Context[] = []
@@ -14,6 +15,7 @@ afterEach(async () => {
 
 function codexConfig(): Config {
   return {
+    ...createDefaultCodexLlmSettings(),
     llmEnabled: false,
     authJsonPath: '/nonexistent/auth.json',
     credentialRef: 'CODEX_CHATGPT_TOKEN',
@@ -41,7 +43,7 @@ async function mountComposition(options: { connection?: boolean; webServer?: str
       return () => undefined
     },
   })
-  ctx.provide('settings', { installSection: vi.fn() })
+  ctx.provide('settings', { configure: vi.fn(() => () => {}) })
   if (options.connection) {
     ctx.provide('connection', { rpc: { handle: vi.fn(() => vi.fn()) } })
   }

@@ -17,6 +17,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-commands'
@@ -32,22 +33,24 @@ import {
 import type { CodexAuthTransport } from './codex-auth-adapter.ts'
 import { CodexAuthService } from './codex-auth-service.ts'
 import {
-  CODEX_LLM_SETTINGS_NAMESPACE, CodexLlmSettingsConfig, createDefaultCodexLlmSettings,
+  CODEX_LONG_CONTEXT_MODEL_IDS,
 } from './codex-context.ts'
 import type { CodexLlmSettings } from './codex-context.ts'
+import { liveValue, type LiveValue } from './volatile-config.ts'
 import { installEnvHttpProxy } from './env-proxy.ts'
 import { createCodexAuthCommand } from './auth-command.ts'
 import {
   commandAccountMode, createLoopbackRpcGuard, type LoopbackRpcMode,
 } from './loopback-rpc.ts'
 import { registerAccountRoutes } from './account-routes.ts'
+import { installForeignCheckpointProjection } from './foreign-checkpoint-projection.ts'
 import { CODEX_AUTH_RPC_NAMESPACE, handleCodexAuthRpc } from './rpc.ts'
 
 export const name = 'llm-codex-auth'
 export const inject = ['llm']
 
 /** Plugin configuration; every field has a default, so a bare row mounts the plugin. */
-export interface Config {
+export interface Config extends Record<keyof CodexLlmSettings, LiveValue<boolean>> {
   /** Whether this row owns the openai-codex LLM route; auth coordination remains available when false. */
   llmEnabled: boolean
   /** Codex auth file path; empty (default) resolves `$CODEX_HOME` or `~/.codex/auth.json`. */
@@ -75,13 +78,15 @@ export const Config: z<Config> = z.object({
   refreshLeadMs: z.number().min(0).default(DEFAULT_REFRESH_LEAD_MS),
   codexCommand: z.string().default('codex'),
   displayName: z.string().default('OpenAI Codex (chatgpt)'),
+  ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, z.boolean().default(false).volatile()])),
   transport: z.union([z.const('auto'), z.const('sse'), z.const('websocket')]).default(DEFAULT_TRANSPORT),
   websocketConnectTimeoutMs: z.natural().default(DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS),
   timeoutMs: z.natural().default(DEFAULT_REQUEST_TIMEOUT_MS),
-})
+}) as unknown as z<Config>
 
 /** Mount the codex-auth adapter and service. */
 export function apply(ctx: Context, config: Config): void {
+  installForeignCheckpointProjection(ctx)
   // Without this, Node's fetch ignores the machine's HTTP proxy env and the
   // chatgpt backend is unreachable on proxied networks (connect timeout).
   installEnvHttpProxy((message) => { ctx.logger.warn(String(message)) })
@@ -103,8 +108,9 @@ export function apply(ctx: Context, config: Config): void {
   ctx.inject(['commands'], commandCtx => {
     commandCtx.commands.register(createCodexAuthCommand(service, () => accountMode))
   })
-  const settingsEntry: CodexLlmSettings = createDefaultCodexLlmSettings()
-  let currentSettings = (): CodexLlmSettings => settingsEntry
+  const currentSettings = (): CodexLlmSettings => Object.fromEntries(
+    CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, liveValue(config[id])]),
+  ) as CodexLlmSettings
   let announceModelPolicyChange = (): void => {}
   if (config.llmEnabled) {
     if (ctx.llm.listProviders().some(provider => provider.id === CODEX_ROUTE)) {
@@ -132,11 +138,9 @@ export function apply(ctx: Context, config: Config): void {
     }
   }
   ctx.inject(['settings'], settingsCtx => {
-    settingsCtx.settings.installSection(ctx, CODEX_LLM_SETTINGS_NAMESPACE, CodexLlmSettingsConfig, settingsEntry, {
-      setSource: source => { currentSettings = source },
-      onChange: announceModelPolicyChange,
-    })
+    settingsCtx.effect(() => settingsCtx.settings.configure({ auto: false }, ctx.fiber))
   })
+  ctx.on('loader/volatile-update', announceModelPolicyChange)
   ctx.inject(['connection'], connectionCtx => {
     const webServer = connectionCtx.get('webServer')
     accountMode = commandAccountMode(webServer)
