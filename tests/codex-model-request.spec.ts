@@ -6,6 +6,7 @@ import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CodexAuthAdapter } from '../src/codex-auth-adapter.ts'
+import type { CodexAuthAdapterOptions } from '../src/codex-auth-adapter.ts'
 import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
@@ -24,7 +25,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-function fixture(response?: () => Response) {
+function fixture(response?: () => Response, policy: Partial<Pick<CodexAuthAdapterOptions, 'settings' | 'onPayload'>> = {}) {
   context = new Context()
   const accountId = 'synthetic-model-policy-account'
   const token = ['header', Buffer.from(JSON.stringify({
@@ -57,6 +58,7 @@ function fixture(response?: () => Response) {
     transport: 'sse',
     websocketConnectTimeoutMs: 1_000,
     timeoutMs: 1_000,
+    ...policy,
   })
   return { adapter, credential, fetchMock, payloads }
 }
@@ -80,6 +82,40 @@ async function drain(stream: AsyncIterable<unknown>): Promise<void> {
 
 describe('Codex model request policy', () => {
   describe.each(['direct', 'prepared'] as const)('%s adapter calls', mode => {
+    it.each([
+      ['inherit', undefined], ['default', 'default'], ['fast', 'priority'],
+    ] as const)('sends the selected %s service tier', async (serviceTier, wireTier) => {
+      const { adapter, payloads, fetchMock } = fixture(undefined, {
+        settings: () => ({ ...createDefaultCodexLlmSettings(), serviceTier }),
+      })
+      const options = request()
+      const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, options.model) : adapter
+      await drain(call.stream(options))
+      expect(payloads).toHaveLength(1)
+      if (wireTier === undefined) expect(payloads[0]).not.toHaveProperty('service_tier')
+      else expect(payloads[0]).toHaveProperty('service_tier', wireTier)
+      // A rejected tier must not trigger a silent Standard retry.
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses live settings for subsequent requests without changing an in-flight payload', async () => {
+      let settings: ReturnType<typeof createDefaultCodexLlmSettings> = {
+        ...createDefaultCodexLlmSettings(), serviceTier: 'fast',
+      }
+      const { adapter, payloads } = fixture(undefined, {
+        settings: () => settings,
+        onPayload: payload => {
+          settings = { ...settings, serviceTier: 'default' }
+          return payload
+        },
+      })
+      const options = request()
+      const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, options.model) : adapter
+      await drain(call.stream(options))
+      await drain(call.stream(options))
+      expect(payloads.map(payload => payload.service_tier)).toEqual(['priority', 'default'])
+    })
+
     it.each([0, 0.7])('rejects Astra temperature %s before resolving credentials', async temperature => {
       const { adapter, credential, fetchMock } = fixture()
       const options = request({ temperature })

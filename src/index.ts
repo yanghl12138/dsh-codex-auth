@@ -32,7 +32,7 @@ import {
 import type { CodexAuthTransport } from './codex-auth-adapter.ts'
 import { CodexAuthService } from './codex-auth-service.ts'
 import {
-  CODEX_LLM_SETTINGS_NAMESPACE, CodexLlmSettingsConfig, createDefaultCodexLlmSettings,
+  CODEX_LLM_SETTINGS_NAMESPACE, CODEX_LONG_CONTEXT_MODEL_IDS, CodexLlmSettingsConfig, createDefaultCodexLlmSettings,
 } from './codex-context.ts'
 import type { CodexLlmSettings } from './codex-context.ts'
 import { installEnvHttpProxy } from './env-proxy.ts'
@@ -126,7 +126,14 @@ export function apply(ctx: Context, config: Config): void {
       timeoutMs: config.timeoutMs,
     })
     const registration = ctx.llm.registerAdapter([CODEX_ROUTE], adapter)
+    let publishedContext: readonly boolean[] | undefined
     announceModelPolicyChange = () => {
+      const settings = currentSettings()
+      const nextContext = CODEX_LONG_CONTEXT_MODEL_IDS.map(id => settings[id])
+      // Tier-only updates are read at request dispatch and must not retire
+      // in-flight replay plans or republish unchanged model descriptors.
+      if (publishedContext?.every((enabled, index) => enabled === nextContext[index])) return
+      publishedContext = nextContext
       adapter.replaceRouteGeneration()
       registration.replace([CODEX_ROUTE])
     }

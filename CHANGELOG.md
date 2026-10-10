@@ -4,6 +4,7 @@
 
 ### Fork feature updates
 
+- `feat`: Add a global Codex LLM service-tier selector (No override, Standard, Fast), preserving existing settings by default and applying the tier to streaming and Native compaction/replay.
 - `feat`: Add GPT-6 Sol and Luna to the Codex route when missing from pi-ai; reject unsupported explicit GPT-6 `temperature`.
 - `feat`: Add GPT-6.1 Sol to the Codex route with model-specific pricing and reasoning controls, plus an independent default-off 1M context switch that preserves existing per-model preferences.
 - `feat`: Add independent 1M context switches for GPT-5.6 Luna/Sol/Terra, GPT-6 Astra/Sol/Luna, and GPT-6.1 Sol, with a UI-only switch to toggle all seven.

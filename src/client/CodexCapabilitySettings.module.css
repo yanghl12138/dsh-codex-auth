@@ -599,6 +599,12 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+.settingsGroupTitle {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+}
+
 .formField {
   flex: none;
   display: flex;

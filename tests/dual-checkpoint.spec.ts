@@ -262,6 +262,7 @@ interface DualHostOptions {
   readonly compactionBackend?: 'codex' | 'basic' | 'none'
   readonly credential?: CodexAuthAdapterOptions['auth']['credential']
   readonly allLongContextEnabled?: boolean
+  readonly settings?: CodexAuthAdapterOptions['settings']
   readonly nativeReply?: (attempt: number, init?: RequestInit) => Response | Promise<Response>
   readonly portableReply?: (attempt: number) => Response | Promise<Response>
   readonly onPayload?: CodexAuthAdapterOptions['onPayload']
@@ -324,9 +325,10 @@ function mountDualCheckpointHost(options: DualHostOptions = {}): {
     refreshLeadMs: 5 * 60 * 1000,
     fetchImpl: fetchMock,
     displayName: 'OpenAI Codex (chatgpt)',
-    settings: () => options.allLongContextEnabled
-      ? Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, true])) as ReturnType<typeof createDefaultCodexLlmSettings>
-      : createDefaultCodexLlmSettings(),
+    settings: options.settings ?? (() => ({
+      ...createDefaultCodexLlmSettings(),
+      ...options.allLongContextEnabled ? Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, true])) : {},
+    })),
     transport: 'sse',
     websocketConnectTimeoutMs: 1_000,
     timeoutMs: options.timeoutMs ?? 5_000,
@@ -683,6 +685,38 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     expect(JSON.stringify(replayBody)).not.toContain(PORTABLE_SUMMARY)
     expect(JSON.stringify(replayBody)).not.toContain(CODEX_NATIVE_CHECKPOINT_BLOCK_TYPE)
     expect(JSON.stringify(replayBody)).not.toContain('compaction_trigger')
+  })
+
+  it('captures the selected tier for compaction and falls back when the tier changes', async () => {
+    let settings: ReturnType<typeof createDefaultCodexLlmSettings> = {
+      ...createDefaultCodexLlmSettings(), serviceTier: 'fast',
+    }
+    const { ctx, requests } = mountDualCheckpointHost({
+      settings: () => settings,
+      // Explicit plugin policy wins over a conflicting custom hook.
+      onPayload: payload => ({ ...(payload as Record<string, unknown>), service_tier: 'flex' }),
+    })
+    vi.spyOn(ctx.sessions, 'flush').mockResolvedValue(true)
+    const session = closedConversation('dual-service-tier')
+    await expect(ctx.compaction.compactNow(
+      idleAgent(session), new AbortController().signal,
+    )).resolves.not.toBeNull()
+    expect(requests.map(request => request.kind)).toEqual(['portable', 'native'])
+    for (const request of requests) expect(request.body.service_tier).toBe('priority')
+    const derived = session.deriveMessages()
+    const stream = () => ctx.llm.stream({
+      provider: 'openai-codex', model: MODEL, messages: derived, sessionId: session.id,
+    })
+    await drain(stream())
+    expect(requests.at(-1)!.body.service_tier).toBe('priority')
+    expect(JSON.stringify(requests.at(-1)!.body)).toContain('opaque-remote-checkpoint')
+    expect(JSON.stringify(requests.at(-1)!.body)).not.toContain(PORTABLE_SUMMARY)
+
+    settings = { ...settings, serviceTier: 'default' }
+    await drain(stream())
+    expect(requests.at(-1)!.body.service_tier).toBe('default')
+    expect(JSON.stringify(requests.at(-1)!.body)).toContain(PORTABLE_SUMMARY)
+    expect(JSON.stringify(requests.at(-1)!.body)).not.toContain('opaque-remote-checkpoint')
   })
 
   it('replays Native when the session pins a reasoning effort', async () => {

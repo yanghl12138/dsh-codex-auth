@@ -286,8 +286,22 @@ describe('Auth / LLM row configuration', () => {
       'gpt-5.6-luna': true, 'gpt-5.6-sol': false, 'gpt-5.6-terra': true,
       'gpt-6-astra': false, 'gpt-6-sol': true, 'gpt-6-luna': false,
     }
-    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false })
-    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true })
+    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false, serviceTier: 'inherit' })
+    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true, serviceTier: 'inherit' })
+  })
+
+  it('accepts only the three service-tier preferences', () => {
+    const parse = CodexLlmSettingsConfig as unknown as (input: Record<string, unknown>) => unknown
+    for (const serviceTier of ['inherit', 'default', 'fast']) {
+      expect(parse({ serviceTier, 'gpt-6-sol': true })).toEqual({
+        ...createDefaultCodexLlmSettings(), serviceTier, 'gpt-6-sol': true,
+      })
+    }
+    // Schemastery treats null as an unset value, like other settings defaults.
+    expect(parse({ serviceTier: null })).toEqual(createDefaultCodexLlmSettings())
+    for (const serviceTier of ['priority', 'auto', 'flex', 'ultrafast', '', true]) {
+      expect(() => parse({ serviceTier })).toThrow()
+    }
   })
 
   it('defaults the route to SSE transport with bounded transport timeouts', () => {
@@ -392,7 +406,10 @@ describe('CodexAuthAdapter route profile', () => {
     }
     const unchanged = standard.find(model => model.id === 'gpt-5.4')
 
-    contextSettings = Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, true])) as typeof contextSettings
+    contextSettings = {
+      ...createDefaultCodexLlmSettings(),
+      ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, true])),
+    }
     const long = getModels()
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
       expect(long.find(model => model.id === id)?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)

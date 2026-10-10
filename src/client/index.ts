@@ -122,7 +122,10 @@ function decodeLlmSettings(value: unknown): LlmSettingsView | undefined {
     'gpt-6-astra', 'gpt-6-sol', 'gpt-6.1-sol', 'gpt-6-luna',
   ]
   if (!fields.every(field => typeof value[field] === 'boolean')) return undefined
+  const serviceTier = value.serviceTier === undefined ? 'inherit' : value.serviceTier
+  if (!oneOf(serviceTier, ['inherit', 'default', 'fast'])) return undefined
   return {
+    serviceTier: serviceTier as LlmSettingsView['serviceTier'],
     'gpt-5.6-luna': value['gpt-5.6-luna'] as boolean,
     'gpt-5.6-sol': value['gpt-5.6-sol'] as boolean,
     'gpt-5.6-terra': value['gpt-5.6-terra'] as boolean,

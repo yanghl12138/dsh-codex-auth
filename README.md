@@ -18,7 +18,7 @@ official **Codex CLI** (`~/.codex/auth.json`, or `$CODEX_HOME/auth.json`) for:
 - durable image generation and editing through `generate_image`, plus the
   model-facing `list_images` catalog;
 - resilient weekly Codex usage status;
-- one native **GPT Auth** Settings section with Login, LLM Context, Web Search,
+- one native **GPT Auth** Settings section with Login, LLM Settings, Web Search,
   and Image Creation cards; detailed Search/Image controls collapse into compact rows.
 
 > **⚠️ Unofficial channel — personal development only.** The private,
@@ -65,7 +65,7 @@ Adds GPT Image 2.5 Sunburst/Flare, advanced quality, and validated custom dimens
 
 ### Changes in this fork
 
-This fork adds the following Codex model and context controls:
+This fork adds the following Codex model and request controls:
 
 - Adds GPT-6 Sol (`gpt-6-sol`), GPT-6.1 Sol (`gpt-6.1-sol`), and GPT-6 Luna (`gpt-6-luna`) to the
   `openai-codex` catalog when the installed pi-ai catalog omits them, using the
@@ -80,6 +80,24 @@ This fork adds the following Codex model and context controls:
   that setting was on—so re-enable the models you want in GPT Auth Settings.
   Existing per-model preferences are preserved when adding GPT-6.1 Sol; only
   its new switch defaults to off.
+- Adds a global **Service tier** dropdown in **LLM Settings**, saved as
+  `codex-llm.serviceTier`: `inherit` (No override, the default), `default`
+  (Standard), or `fast` (sends `service_tier: "priority"` for compatibility with
+  pi-ai 0.85.1). Missing settings default to `inherit` without changing saved
+  model switches. Changes apply to new Codex LLM requests, including native
+  compaction; Search and Image Creation are unaffected. The aggregate context
+  switch never changes the tier.
+
+No override preserves any tier supplied by existing request callbacks. Standard
+and Fast override those callbacks; a tier change can make Native checkpoints
+incompatible, in which case existing Portable replay is used. The plugin does
+not read Codex CLI's Fast preference or silently retry a rejected tier as
+Standard. The [official public API guide](https://developers.openai.com/api/docs/guides/fast-mode)
+documents `fast` and `priority` as equivalent for supported models; availability
+on the private Codex login route remains model/account/backend-dependent.
+Selecting Fast is a request preference, not confirmation of acceleration or the
+tier actually served. It may consume quota faster, and DSH/pi-ai cost estimates
+are not the actual subscription usage or bill.
 
 Requests beyond 272K may consume account quota faster, backend availability
 remains account-dependent, and enabling 1M context does not restore history that
