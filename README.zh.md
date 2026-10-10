@@ -17,7 +17,7 @@
 - 接入 DSH 内置 `web_search` 工具的全局 Codex 搜索提供方；
 - 通过 `generate_image` 实现持久图片生成与编辑，并提供供模型使用的 `list_images` 目录；
 - 稳健的 Codex 周用量状态；
-- 一个原生 **GPT Auth** 设置分区，内含「登录」「LLM 上下文」「网页搜索」「图片创作」
+- 一个原生 **GPT Auth** 设置分区，内含「登录」「LLM 设置」「网页搜索」「图片创作」
   四张卡片；搜索与图片的详细设置可收起为紧凑卡片。
 
 > **⚠️ 非官方通道——仅限个人开发。** 私有、受账户权限控制的
@@ -69,7 +69,7 @@
 
 ### 本 Fork 的更新
 
-本 Fork 为 Codex 模型和上下文控制增加了以下内容：
+本 Fork 为 Codex 模型和请求控制增加了以下内容：
 
 - 当已安装的 pi-ai 目录缺少 GPT-6 Sol（`gpt-6-sol`）、GPT-6.1 Sol（`gpt-6.1-sol`）和 GPT-6 Luna
   （`gpt-6-luna`）时，以对应 GPT-5.6 模型描述符为模板补入；若上游已有描述符则保留。
@@ -82,6 +82,20 @@
   也不会自动迁移；升级后请检查并重新启用所需开关。
 - `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 跟随上游适配 DSH `0.2.0-rc.2`
   和 pi-ai `0.87.1`。
+- 在「LLM 设置」中增加全局「服务档位」下拉框，使用 `llm-codex-auth` Config Form
+  的 `serviceTier` 字段：`inherit`（不覆盖，默认）、`default`（标准）、`fast`
+  （为兼容 pi-ai `0.87.1`，发送 `service_tier: "priority"`）。配置缺少该字段时默认
+  不覆盖，不改变模型开关。保存后对新的 Codex LLM 请求生效，包括 Native 压缩；
+  不影响网页搜索和图片创作。上下文一键开关不会修改服务档位，也不迁移旧 `codex-llm`
+  namespace 中的偏好。
+
+「不覆盖」保留已有请求回调设置的档位；「标准」和 Fast 优先于这些回调。切换档位可能使
+Native checkpoint 不再兼容，此时沿用已有 Portable 回退。插件不会读取 Codex CLI 的 Fast
+偏好，也不会在档位被拒绝时静默改成标准档重试。
+[官方公开 API 文档](https://developers.openai.com/api/docs/guides/fast-mode)说明 `fast` 与
+`priority` 对受支持模型等效，但私有 Codex 登录路由的实际可用性仍取决于模型、账户和服务端。
+选择 Fast 仅代表请求偏好，不保证加速，也不代表服务端实际采用了该档位；可能增加额度消耗，
+DSH/pi-ai 的费用估算不代表实际订阅用量或账单。
 
 超过 272K 的请求可能更快消耗账户配额，后端是否支持仍取决于账户；启用长上下文也不会恢复
 DSH 已经压缩的历史。
@@ -396,7 +410,7 @@ dsh plugin --profile web list
 | `timeoutMs` | `120000` | 请求超时（毫秒，SSE 响应头阶段；同时作为 WebSocket 消息空闲间隔；`0` 表示禁用） |
 
 GPT Auth 设置页可分别控制 GPT-5.6 Luna、Sol、Terra、GPT-6 Astra、Sol、Luna 以及 GPT-6.1 Sol 的长上下文。
-汇总开关只是前端批量操作，会更新这七项设置，不是插件配置字段。
+汇总开关只是前端批量操作，会更新这七项上下文设置，不修改 `serviceTier`，不是插件配置字段。
 七项布尔字段均默认关闭，在 `llm-codex-auth` 行的 Config Form 中以模型 ID 为键，
 例如 `gpt-6.1-sol: true`。设置保存到当前 profile 的 Cordis patch，开启后使用上述按模型区分的预算。
 

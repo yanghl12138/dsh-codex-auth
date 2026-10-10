@@ -18,7 +18,7 @@ official **Codex CLI** (`~/.codex/auth.json`, or `$CODEX_HOME/auth.json`) for:
 - durable image generation and editing through `generate_image`, plus the
   model-facing `list_images` catalog;
 - resilient weekly Codex usage status;
-- one native **GPT Auth** Settings section with Login, LLM Context, Web Search,
+- one native **GPT Auth** Settings section with Login, LLM Settings, Web Search,
   and Image Creation cards; detailed Search/Image controls collapse into compact rows.
 
 > **⚠️ Unofficial channel — personal development only.** The private,
@@ -75,7 +75,7 @@ Adds GPT Image 2.5 Sunburst/Flare, advanced quality, and validated custom dimens
 
 ### Changes in this fork
 
-This fork adds the following Codex model and context controls:
+This fork adds the following Codex model and request controls:
 
 - Adds GPT-6 Sol (`gpt-6-sol`), GPT-6.1 Sol (`gpt-6.1-sol`), and GPT-6 Luna (`gpt-6-luna`) to the
   `openai-codex` catalog when the installed pi-ai catalog omits them, using the
@@ -93,6 +93,25 @@ This fork adds the following Codex model and context controls:
   Check and re-enable your preferred switches after upgrading.
 - Keeps the DSH `0.1.5`-compatible version on branch `1.5.x`; `main` now follows
   upstream DSH `0.2.0-rc.2` and pi-ai `0.87.1`.
+- Adds a global **Service tier** dropdown in **LLM Settings**, using the
+  `serviceTier` field in the `llm-codex-auth` Config Form: `inherit` (No override,
+  the default), `default` (Standard), or `fast` (sends `service_tier: "priority"`
+  for compatibility with pi-ai `0.87.1`). Missing settings default to `inherit`
+  without changing model switches. Changes apply to new Codex LLM requests,
+  including Native compaction; Search and Image Creation are unaffected.
+  The aggregate context switch never changes the tier. Old `codex-llm` namespace
+  preferences are not migrated.
+
+No override preserves any tier supplied by existing request callbacks. Standard
+and Fast override those callbacks; a tier change can make Native checkpoints
+incompatible, in which case existing Portable replay is used. The plugin does
+not read Codex CLI's Fast preference or silently retry a rejected tier as
+Standard. The [official public API guide](https://developers.openai.com/api/docs/guides/fast-mode)
+documents `fast` and `priority` as equivalent for supported models; availability
+on the private Codex login route remains model/account/backend-dependent.
+Selecting Fast is a request preference, not a guarantee of acceleration or
+confirmation of the tier actually served. It may consume quota faster, and
+DSH/pi-ai cost estimates are not the actual subscription usage or bill.
 
 Requests beyond 272K may consume account quota faster, backend availability
 remains account-dependent, and enabling long context does not restore history that
@@ -474,7 +493,8 @@ Login State coordinator available to Search/Image without owning an LLM route:
 
 The GPT Auth Settings page controls long context independently for GPT-5.6 Luna,
 Sol, and Terra, GPT-6 Astra, Sol, and Luna, and GPT-6.1 Sol. Its aggregate switch is a
-front-end convenience that updates all seven settings; it is not a plugin config field.
+front-end convenience that updates all seven context settings without changing
+`serviceTier`; it is not a plugin config field.
 Each default-off boolean uses its model ID as a field in the `llm-codex-auth`
 row's Config Form, for example `gpt-6.1-sol: true`. Settings persist in the active
 profile's Cordis patch; enabling a model reports its model-specific budget above.

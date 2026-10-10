@@ -48,7 +48,7 @@ import {
   CODEX_GPT_6_SOL_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
 } from './codex-context.ts'
-import type { CodexLlmSettings } from './codex-context.ts'
+import type { CodexLlmSettings, CodexServiceTier } from './codex-context.ts'
 import { CodexNativeCheckpointReplay } from './native-checkpoint-replay.ts'
 import type { CodexProviderPayloadCallback } from './native-checkpoint-replay.ts'
 import { codexNativeCompactionCoordinator } from './native-compaction.ts'
@@ -166,6 +166,7 @@ function prepareCodexStreamOptions<Options extends StreamOptions | undefined>(
   transport: CodexProviderTransport,
   configuredOnPayload: CodexProviderPayloadCallback | undefined,
   replay: CodexNativeCheckpointReplay,
+  serviceTier: CodexServiceTier,
 ): Options {
   const continued = codexTurnStateContinuity.applyProviderOptions(
     options,
@@ -173,7 +174,7 @@ function prepareCodexStreamOptions<Options extends StreamOptions | undefined>(
     model.id,
   )
   noteNativeCompactionRequest(provider, model, continued, transport)
-  return withReplayPayload(continued, configuredOnPayload, replay)
+  return withReplayPayload(continued, configuredOnPayload, replay, serviceTier)
 }
 
 /**
@@ -204,12 +205,12 @@ function codexProvider(
     stream: (model, context, options) => base.stream(
       model,
       context,
-      prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay),
+      prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay, settings().serviceTier),
     ),
     streamSimple: (model, context, options) => base.streamSimple(
       model,
       context,
-      prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay),
+      prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay, settings().serviceTier),
     ),
   }
 }
@@ -240,8 +241,20 @@ function withReplayPayload<
   options: Options,
   configured: CodexProviderPayloadCallback | undefined,
   replay: CodexNativeCheckpointReplay,
+  serviceTier: CodexServiceTier,
 ): Options {
-  const previous = composePayloadCallbacks(configured, options?.onPayload)
+  // Snapshot at dispatch; policy follows user hooks but precedes replay's
+  // final compatibility check and compaction's final payload capture.
+  const tierPolicy: CodexProviderPayloadCallback | undefined = serviceTier === 'inherit'
+    ? undefined
+    : payload => ({
+      ...(payload as Record<string, unknown>),
+      service_tier: serviceTier === 'fast' ? 'priority' : serviceTier,
+    })
+  const previous = composePayloadCallbacks(
+    composePayloadCallbacks(configured, options?.onPayload),
+    tierPolicy,
+  )
   const restored = replay.payloadCallback(previous)
   const onPayload = codexNativeCompactionCoordinator.payloadCallback(restored)
   return (onPayload === undefined ? options : { ...options, onPayload }) as Options

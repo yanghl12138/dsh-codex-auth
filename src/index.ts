@@ -50,7 +50,9 @@ export const name = 'llm-codex-auth'
 export const inject = ['llm']
 
 /** Plugin configuration; every field has a default, so a bare row mounts the plugin. */
-export interface Config extends Record<keyof CodexLlmSettings, LiveValue<boolean>> {
+type LiveLlmSettings = { [K in keyof CodexLlmSettings]: LiveValue<CodexLlmSettings[K]> }
+
+export interface Config extends LiveLlmSettings {
   /** Whether this row owns the openai-codex LLM route; auth coordination remains available when false. */
   llmEnabled: boolean
   /** Codex auth file path; empty (default) resolves `$CODEX_HOME` or `~/.codex/auth.json`. */
@@ -79,6 +81,7 @@ export const Config: z<Config> = z.object({
   codexCommand: z.string().default('codex'),
   displayName: z.string().default('OpenAI Codex (chatgpt)'),
   ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, z.boolean().default(false).volatile()])),
+  serviceTier: z.union([z.const('inherit'), z.const('default'), z.const('fast')]).default('inherit').volatile(),
   transport: z.union([z.const('auto'), z.const('sse'), z.const('websocket')]).default(DEFAULT_TRANSPORT),
   websocketConnectTimeoutMs: z.natural().default(DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS),
   timeoutMs: z.natural().default(DEFAULT_REQUEST_TIMEOUT_MS),
@@ -108,9 +111,10 @@ export function apply(ctx: Context, config: Config): void {
   ctx.inject(['commands'], commandCtx => {
     commandCtx.commands.register(createCodexAuthCommand(service, () => accountMode))
   })
-  const currentSettings = (): CodexLlmSettings => Object.fromEntries(
-    CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, liveValue(config[id])]),
-  ) as CodexLlmSettings
+  const currentSettings = (): CodexLlmSettings => ({
+    ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, liveValue(config[id])])),
+    serviceTier: liveValue(config.serviceTier),
+  }) as CodexLlmSettings
   let announceModelPolicyChange = (): void => {}
   if (config.llmEnabled) {
     if (ctx.llm.listProviders().some(provider => provider.id === CODEX_ROUTE)) {
@@ -132,7 +136,14 @@ export function apply(ctx: Context, config: Config): void {
       timeoutMs: config.timeoutMs,
     })
     const registration = ctx.llm.registerAdapter([CODEX_ROUTE], adapter)
+    const initialSettings = currentSettings()
+    let publishedContext = CODEX_LONG_CONTEXT_MODEL_IDS.map(id => initialSettings[id])
     announceModelPolicyChange = () => {
+      const settings = currentSettings()
+      const nextContext = CODEX_LONG_CONTEXT_MODEL_IDS.map(id => settings[id])
+      // Tier-only changes apply at dispatch without retiring in-flight replay plans.
+      if (publishedContext.every((enabled, index) => enabled === nextContext[index])) return
+      publishedContext = nextContext
       adapter.replaceRouteGeneration()
       registration.replace([CODEX_ROUTE])
     }

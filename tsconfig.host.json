@@ -8,6 +8,7 @@
     "tests/dsh-upgrade.spec.ts",
     "tests/codex-auth.spec.ts",
     "tests/codex-model-request.spec.ts",
+    "tests/service-tier.spec.ts",
     "tests/rpc.spec.ts",
     "tests/search.spec.ts",
     "tests/image.spec.ts",

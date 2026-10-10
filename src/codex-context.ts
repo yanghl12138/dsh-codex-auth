@@ -99,18 +99,27 @@ export function codexLongContextWindow(modelId: string): number | undefined {
   return GPT_6_MODEL_IDS.has(modelId) ? CODEX_GPT_6_LONG_CONTEXT_WINDOW : CODEX_LONG_CONTEXT_WINDOW
 }
 
-/** Independently live settings that affect the openai-codex model catalog. */
-export type CodexLlmSettings = Record<typeof CODEX_LONG_CONTEXT_MODEL_IDS[number], boolean>
+/** Request policy labels; Fast uses the compatible `priority` wire value. */
+export type CodexServiceTier = 'inherit' | 'default' | 'fast'
 
-export function createDefaultCodexLlmSettings(): CodexLlmSettings {
-  return Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, false])) as CodexLlmSettings
+/** Live context and request preferences owned by the openai-codex route. */
+export type CodexLlmSettings = Record<typeof CODEX_LONG_CONTEXT_MODEL_IDS[number], boolean> & {
+  serviceTier: CodexServiceTier
 }
 
-export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object(
-  Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, z.boolean().default(false)])) as {
+export function createDefaultCodexLlmSettings(): CodexLlmSettings {
+  return {
+    ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, false])),
+    serviceTier: 'inherit',
+  } as CodexLlmSettings
+}
+
+export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object({
+  ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, z.boolean().default(false)])) as {
     [K in typeof CODEX_LONG_CONTEXT_MODEL_IDS[number]]: z<boolean>
   },
-)
+  serviceTier: z.union([z.const('inherit'), z.const('default'), z.const('fast')]).default('inherit'),
+})
 
 /**
  * Keep the generated pi-ai catalog intact and overlay GPT-6 models only when
@@ -126,7 +135,7 @@ export function applyCodexContextPolicy(
   if (!CODEX_LONG_CONTEXT_MODEL_IDS.some(id => settings[id])) return catalog
   return catalog.map(model => {
     const contextWindow = codexLongContextWindow(model.id)
-    return contextWindow !== undefined && settings[model.id as keyof CodexLlmSettings]
+    return contextWindow !== undefined && settings[model.id as typeof CODEX_LONG_CONTEXT_MODEL_IDS[number]]
       ? { ...model, contextWindow }
       : model
   })

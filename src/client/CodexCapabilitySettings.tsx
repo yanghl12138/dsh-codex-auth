@@ -7,11 +7,13 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CodexAuthRpcClient, CodexAuthStatusView, CodexUsageView } from '../rpc-contract.ts'
 import type { CodexAuthKey } from './locales.ts'
+import type { CodexServiceTier } from '../codex-context.ts'
 import { IMAGE_MODELS, IMAGE_SIZES, isImageSize, supportsImageQuality, supportsImageSize } from '../image-options.ts'
 import type { ImageQuality, ImageSize } from '../image-options.ts'
 import classes from './CodexCapabilitySettings.module.css'
 
 export interface LlmSettingsView {
+  serviceTier: CodexServiceTier
   'gpt-5.6-luna': boolean
   'gpt-5.6-sol': boolean
   'gpt-5.6-terra': boolean
@@ -193,7 +195,7 @@ export function CodexCapabilitySettings({
           <p className={classes.privacyNotice}>{t('privacyNotice')}</p>
         </article>
 
-        {/* LLM Context Card */}
+        {/* LLM Settings Card */}
         <article className={`${classes.card} ${classes.contextCard}`}>
           <CardHeading
             title={t('contextCardTitle')}
@@ -214,6 +216,21 @@ export function CodexCapabilitySettings({
             )}
           />
           <SettingsState snapshot={llm} t={t}>
+            <div className={classes.formRows}>
+              <Control label={t('serviceTier')}>
+                <select aria-label={t('serviceTier')} value={llm.value?.serviceTier ?? 'inherit'} disabled={!llm.writable}
+                  onChange={event => { void writer(llmScope, setError, t)('serviceTier', event.target.value) }}>
+                  <option value="inherit">{t('serviceTierInherit')}</option>
+                  <option value="default">{t('serviceTierDefault')}</option>
+                  <option value="fast">{t('serviceTierFast')}</option>
+                </select>
+              </Control>
+            </div>
+            <div className={classes.contextDetails}>
+              <p>{t('serviceTierBehavior')}</p>
+              <p className={classes.contextWarning}>{t('serviceTierWarning')}</p>
+            </div>
+            <h3 className={classes.settingsGroupTitle}>{t('contextGroupTitle')}</h3>
             <div className={classes.contextDetails}>
               <p>{t('contextBehavior')}</p>
               <p className={classes.contextWarning}>{t('contextWarning')}</p>

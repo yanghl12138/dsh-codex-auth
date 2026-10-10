@@ -4,6 +4,7 @@
 
 ### Fork feature updates
 
+- `feat`: Add a global Codex LLM service-tier selector (No override, Standard, Fast) in the `llm-codex-auth` Config Form, preserving existing settings by default and applying the tier to streaming and Native compaction/replay without affecting Search or Image Creation. Fast is not an acceleration guarantee and may consume more quota.
 - `feat`: Add GPT-6 Sol and Luna to the Codex route when missing from pi-ai; reject unsupported explicit GPT-6 `temperature`.
 - `feat`: Support GPT-6.1 Sol alongside GPT-6 Sol/Luna, following the upstream Codex model policy.
 - `feat`: Keep seven independent long-context switches and a UI-only aggregate switch through DSH 0.2 Config Forms; use 872K for GPT-6/6.1 and 1M for GPT-5.6.

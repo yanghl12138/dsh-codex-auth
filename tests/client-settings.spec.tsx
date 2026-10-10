@@ -41,6 +41,7 @@ const IMAGE: CodexImageSettings = {
 function fakeScope<T>(
   initial: T,
   status: ConfigFormSnapshot<T>['status'] = 'ready',
+  writable = true,
 ): { scope: ConfigForm<T>; set: ReturnType<typeof vi.fn> } {
   let snapshot: ConfigFormSnapshot<T> = {
     status,
@@ -48,7 +49,7 @@ function fakeScope<T>(
     base: initial,
     user: {},
     revision: 1,
-    writable: true,
+    writable,
     mode: 'host',
   }
   const listeners = new Set<() => void>()
@@ -98,6 +99,76 @@ const subscribe = (): (() => void) => () => {}
 afterEach(() => cleanup())
 
 describe('Codex Capability Bundle settings', () => {
+  it('saves each global tier without changing context or other capabilities, even before login', async () => {
+    const llm = fakeScope(LLM)
+    const search = fakeScope(SEARCH)
+    const image = fakeScope(IMAGE)
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({ configured: false, authFileExists: false }))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={search.scope} imageScope={image.scope} />)
+    await screen.findByText('Not logged in')
+    const select = screen.getByRole('combobox', { name: 'Service tier' }) as HTMLSelectElement
+    expect(select.disabled).toBe(false)
+    expect(select.value).toBe('inherit')
+    expect(Array.from(select.options, option => [option.value, option.text])).toEqual([
+      ['inherit', 'No override (default)'], ['default', 'Standard'], ['fast', 'Fast'],
+    ])
+    expect(screen.getByRole('heading', { name: 'Context' })).toBeTruthy()
+    for (const value of ['fast', 'default', 'inherit']) {
+      fireEvent.change(select, { target: { value } })
+      await waitFor(() => expect(llm.set).toHaveBeenLastCalledWith('serviceTier', value))
+      expect(select.value).toBe(value)
+    }
+    expect(llm.set).toHaveBeenCalledTimes(3)
+    expect(search.set).not.toHaveBeenCalled()
+    expect(image.set).not.toHaveBeenCalled()
+    expect(screen.getByText(en.serviceTierBehavior)).toBeTruthy()
+    expect(screen.getByText(en.serviceTierWarning)).toBeTruthy()
+  })
+
+  it('defaults a missing tier to inherit without saving or changing existing context switches', () => {
+    const { serviceTier: _serviceTier, ...legacy } = { ...LLM, 'gpt-6.1-sol': true }
+    const llm = fakeScope(legacy as typeof LLM)
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({}))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    expect((screen.getByLabelText('Service tier') as HTMLSelectElement).value).toBe('inherit')
+    expect((screen.getByLabelText('GPT-6.1 Sol') as HTMLInputElement).checked).toBe(true)
+    expect(llm.set).not.toHaveBeenCalled()
+  })
+
+  it('reports failed tier saves and retains the saved selection', async () => {
+    const llm = fakeScope({ ...LLM, serviceTier: 'fast' as const })
+    llm.set.mockRejectedValueOnce(new Error('tier save failed'))
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({}))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    fireEvent.change(screen.getByLabelText('Service tier'), { target: { value: 'default' } })
+    expect(await screen.findByText('tier save failed')).toBeTruthy()
+    expect((screen.getByLabelText('Service tier') as HTMLSelectElement).value).toBe('fast')
+    expect(llm.set).toHaveBeenCalledExactlyOnceWith('serviceTier', 'default')
+  })
+
+  it.each(['loading', 'unavailable', 'readonly'] as const)('prevents tier edits when settings are %s', state => {
+    const llm = fakeScope(LLM, state === 'readonly' ? 'ready' : state, state !== 'readonly')
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({}))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    const select = screen.queryByLabelText('Service tier') as HTMLSelectElement | null
+    if (state === 'readonly') expect(select?.disabled).toBe(true)
+    else expect(select).toBeNull()
+    expect(llm.set).not.toHaveBeenCalled()
+  })
+
+  it('provides Chinese tier controls and grouped LLM settings', () => {
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({}))} t={key => zh[key]} subscribe={subscribe}
+      llmScope={fakeScope(LLM).scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    expect(screen.getByRole('heading', { name: 'LLM 设置' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '上下文' })).toBeTruthy()
+    const select = screen.getByLabelText('服务档位') as HTMLSelectElement
+    expect(Array.from(select.options, option => [option.value, option.text])).toEqual([
+      ['inherit', '不覆盖（默认）'], ['default', '标准'], ['fast', 'Fast'],
+    ])
+    expect(screen.getByText(zh.serviceTierBehavior)).toBeTruthy()
+    expect(screen.getByText(zh.serviceTierWarning)).toBeTruthy()
+  })
+
   it('saves GPT Image 2.5 quality and custom dimensions while rejecting incomplete sizes', async () => {
     const image = fakeScope({ ...IMAGE, model: 'gpt-image-2.5-sunburst' })
     render(<CodexCapabilitySettings rpc={rpc(authStatus({ planType: 'plus' }))} t={t} subscribe={subscribe}
@@ -120,7 +191,7 @@ describe('Codex Capability Bundle settings', () => {
     expect((screen.getByRole('option', { name: 'Maximum' }) as HTMLOptionElement).disabled).toBe(true)
   })
 
-  it('renders Login, LLM Context, Search, and Image Creation as one live four-card section', async () => {
+  it('renders Login, LLM Settings, Search, and Image Creation as one live four-card section', async () => {
     const llm = fakeScope(LLM)
     const search = fakeScope(SEARCH)
     const image = fakeScope(IMAGE)
@@ -138,7 +209,7 @@ describe('Codex Capability Bundle settings', () => {
 
     expect(await screen.findByText('Active')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Login' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'LLM Context' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'LLM Settings' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Web Search' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Image Creation' })).toBeTruthy()
     // The login block only surfaces plan, remaining quota, and weekly reset.
@@ -178,8 +249,8 @@ describe('Codex Capability Bundle settings', () => {
     await waitFor(() => expect(image.set).toHaveBeenCalledWith('n', 3))
   })
 
-  it('toggles GPT-6.1 Sol independently and includes it in mixed and all-off states', async () => {
-    const llm = fakeScope(LLM)
+  it('toggles GPT-6.1 Sol independently and includes it in mixed and all-off states without changing the tier', async () => {
+    const llm = fakeScope({ ...LLM, serviceTier: 'fast' as const })
     render(<CodexCapabilitySettings rpc={rpc(authStatus({ planType: 'plus' }))} t={t} subscribe={subscribe}
       llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
     await screen.findByText('Active')
@@ -201,6 +272,8 @@ describe('Codex Capability Bundle settings', () => {
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) expect(llm.set).toHaveBeenCalledWith(id, false)
     expect(aggregate.checked).toBe(false)
     expect(screen.getByText('Long context enabled for 0/7 models')).toBeTruthy()
+    expect(llm.set).not.toHaveBeenCalledWith('serviceTier', expect.anything())
+    expect((screen.getByLabelText('Service tier') as HTMLSelectElement).value).toBe('fast')
   })
 
   it('announces loading settings while keeping skeleton rows decorative', async () => {
