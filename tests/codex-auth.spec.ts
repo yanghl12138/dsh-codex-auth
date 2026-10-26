@@ -300,8 +300,8 @@ describe('Auth / LLM row configuration', () => {
       'gpt-5.6-luna': true, 'gpt-5.6-sol': false, 'gpt-5.6-terra': true,
       'gpt-6-astra': false, 'gpt-6-sol': true, 'gpt-6-luna': false,
     }
-    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false, serviceTier: 'inherit' })
-    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true, serviceTier: 'inherit' })
+    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false, serviceTier: 'inherit', excludedModelIds: [] })
+    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true, serviceTier: 'inherit', excludedModelIds: [] })
   })
 
   it('validates service tiers and defaults missing preferences without changing model switches', () => {
@@ -323,6 +323,22 @@ describe('Auth / LLM row configuration', () => {
     for (const serviceTier of ['priority', 'auto', 'flex', 'ultrafast', '', true]) {
       expect(() => parse({ serviceTier })).toThrow()
       expect(() => parsePlugin({ serviceTier })).toThrow()
+    }
+  })
+
+  it('adds empty exclusions without changing saved context switches or service tier', () => {
+    const parse = CodexLlmSettingsConfig as unknown as (input: Record<string, unknown>) => unknown
+    const parsePlugin = PluginConfig as unknown as (input: Record<string, unknown>) => PluginConfigView
+    const saved = { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true, serviceTier: 'fast' }
+    const { excludedModelIds: _excludedModelIds, ...legacy } = saved
+    expect(parse(legacy)).toEqual(saved)
+    expect(liveValue(parsePlugin(legacy).excludedModelIds ?? [])).toEqual([])
+    const excludedModelIds = ['gpt-6.1-sol', 'unknown', 'gpt-6.1-sol']
+    expect(parse({ ...legacy, excludedModelIds })).toEqual({ ...saved, excludedModelIds })
+    expect(liveValue(parsePlugin({ ...legacy, excludedModelIds }).excludedModelIds ?? [])).toEqual(excludedModelIds)
+    for (const value of ['gpt-6.1-sol', [true]]) {
+      expect(() => parse({ excludedModelIds: value })).toThrow()
+      expect(() => parsePlugin({ excludedModelIds: value })).toThrow()
     }
   })
 
@@ -357,6 +373,8 @@ describe('CodexAuthAdapter route profile', () => {
     const retire = vi.spyOn(CodexAuthAdapter.prototype, 'replaceRouteGeneration')
     config.serviceTier = { get: () => serviceTier } as PluginConfigView['serviceTier']
     config['gpt-6.1-sol'] = { get: () => enabled } as PluginConfigView['gpt-6.1-sol']
+    const excludedModelIds: string[] = []
+    config.excludedModelIds = { get: () => excludedModelIds } as NonNullable<PluginConfigView['excludedModelIds']>
     try {
       applyCodex(ctx, config)
       const profile = piAiAdapterCalls.at(-1)?.profiles().get('openai-codex')
@@ -388,6 +406,24 @@ describe('CodexAuthAdapter route profile', () => {
       expect(retire).toHaveBeenCalledTimes(2)
       expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
         .toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+      // Mutating the same list still changes the published catalog snapshot.
+      excludedModelIds.push(CODEX_GPT_6_1_SOL_MODEL_ID)
+      ctx.emit('loader/volatile-update', [['excludedModelIds']])
+      expect(getModels().some(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(false)
+      expect(replace).toHaveBeenCalledTimes(3)
+      expect(retire).toHaveBeenCalledTimes(3)
+      serviceTier = 'default'
+      ctx.emit('loader/volatile-update', [['serviceTier']])
+      ctx.emit('loader/volatile-update', [['excludedModelIds']])
+      expect(replace).toHaveBeenCalledTimes(3)
+      expect(retire).toHaveBeenCalledTimes(3)
+      excludedModelIds.length = 0
+      enabled = true
+      ctx.emit('loader/volatile-update', [['excludedModelIds'], ['gpt-6.1-sol']])
+      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
+        .toBe(CODEX_GPT_6_LONG_CONTEXT_WINDOW)
+      expect(replace).toHaveBeenCalledTimes(4)
+      expect(retire).toHaveBeenCalledTimes(4)
     } finally {
       await ctx.fiber.dispose()
     }

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type { ComponentType } from 'react'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { CodexImageSettings } from '../src/image.ts'
 import type { CodexSearchSettings } from '../src/search.ts'
@@ -42,6 +43,7 @@ function fakeScope<T>(
   initial: T,
   status: ConfigFormSnapshot<T>['status'] = 'ready',
   writable = true,
+  beforeSet?: () => Promise<void>,
 ): { scope: ConfigForm<T>; set: ReturnType<typeof vi.fn> } {
   let snapshot: ConfigFormSnapshot<T> = {
     status,
@@ -50,11 +52,11 @@ function fakeScope<T>(
     user: {},
     revision: 1,
     writable,
-    mode: 'host',
   }
   const listeners = new Set<() => void>()
   const set = vi.fn(async (field: string, value: unknown) => {
-    snapshot = { ...snapshot, value: { ...snapshot.value, [field]: value } }
+    await beforeSet?.()
+    snapshot = { ...snapshot, value: { ...(snapshot.value ?? initial), [field]: value } }
     for (const listener of listeners) listener()
     return true
   })
@@ -167,6 +169,76 @@ describe('Codex Capability Bundle settings', () => {
     ])
     expect(screen.getByText(zh.serviceTierBehavior)).toBeTruthy()
     expect(screen.getByText(zh.serviceTierWarning)).toBeTruthy()
+  })
+
+  it('blocks editing until a pending exclusion save settles, then permits clearing the saved list', async () => {
+    const pending = Promise.withResolvers<void>()
+    const llm = fakeScope({ ...LLM, excludedModelIds: [] as string[] }, 'ready', true, () => pending.promise)
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({}))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    const input = screen.getByLabelText('Excluded model IDs') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'gpt-5.3-codex-spark' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(input.disabled).toBe(true)
+    fireEvent.blur(input)
+    expect(llm.set).toHaveBeenCalledTimes(1)
+    pending.resolve()
+    await waitFor(() => expect(input.disabled).toBe(false))
+    expect(input.value).toBe('gpt-5.3-codex-spark')
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(llm.set).toHaveBeenLastCalledWith('excludedModelIds', []))
+    await waitFor(() => expect(input.disabled).toBe(false))
+    expect(input.value).toBe('')
+  })
+
+  it('saves exact model exclusions on blur or Enter, deduplicates input, and clears to an empty list', async () => {
+    const llm = fakeScope({ ...LLM, excludedModelIds: ['gpt-5.4'] })
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({}))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    const input = screen.getByLabelText('Excluded model IDs') as HTMLInputElement
+    expect(input.value).toBe('gpt-5.4')
+    expect(screen.getByText(/catalog visibility, not request permissions/)).toBeTruthy()
+    fireEvent.change(input, { target: { value: ' gpt-5.3-codex-spark, unknown, gpt-5.3-codex-spark, ' } })
+    expect(llm.set).not.toHaveBeenCalled()
+    fireEvent.blur(input)
+    await waitFor(() => expect(llm.set).toHaveBeenCalledWith('excludedModelIds', ['gpt-5.3-codex-spark', 'unknown']))
+    fireEvent.change(input, { target: { value: ' ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(llm.set).toHaveBeenCalledWith('excludedModelIds', []))
+  })
+
+  it('resets exclusion drafts when switching profiles and surfaces save failures', async () => {
+    const first = fakeScope({ ...LLM, excludedModelIds: ['gpt-5.4'] })
+    const second = fakeScope({ ...LLM, excludedModelIds: ['gpt-6-sol'] })
+    const props = { rpc: rpc(authStatus({})), t, subscribe, searchScope: fakeScope(SEARCH).scope, imageScope: fakeScope(IMAGE).scope }
+    const { rerender } = render(<CodexCapabilitySettings {...props} llmScope={first.scope} />)
+    fireEvent.change(screen.getByLabelText('Excluded model IDs'), { target: { value: 'unsaved' } })
+    rerender(<CodexCapabilitySettings {...props} llmScope={second.scope} />)
+    expect((screen.getByLabelText('Excluded model IDs') as HTMLInputElement).value).toBe('gpt-6-sol')
+    second.set.mockRejectedValueOnce(new Error('Storage unavailable'))
+    fireEvent.change(screen.getByLabelText('Excluded model IDs'), { target: { value: 'gpt-5.4' } })
+    fireEvent.blur(screen.getByLabelText('Excluded model IDs'))
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Storage unavailable')
+    second.set.mockResolvedValueOnce(false)
+    fireEvent.change(screen.getByLabelText('Excluded model IDs'), { target: { value: 'unknown' } })
+    fireEvent.blur(screen.getByLabelText('Excluded model IDs'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveProperty('textContent', en.writeFailed))
+    expect(first.set).not.toHaveBeenCalled()
+  })
+
+  it('reports false aggregate saves without changing the tier or exclusions', async () => {
+    const llm = fakeScope({ ...LLM, serviceTier: 'fast' as const, excludedModelIds: ['gpt-6.1-sol'] })
+    llm.set.mockResolvedValue(false)
+    render(<CodexCapabilitySettings rpc={rpc(authStatus({}))} t={t} subscribe={subscribe}
+      llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+    fireEvent.click(screen.getByLabelText(en.toggleAllLongContext))
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', en.writeFailed)
+    expect(llm.set).toHaveBeenCalledTimes(CODEX_LONG_CONTEXT_MODEL_IDS.length)
+    expect(llm.set).not.toHaveBeenCalledWith('serviceTier', expect.anything())
+    expect(llm.set).not.toHaveBeenCalledWith('excludedModelIds', expect.anything())
+    expect((screen.getByLabelText(en.serviceTier) as HTMLSelectElement).value).toBe('fast')
+    expect((screen.getByLabelText(en.excludedModelIds) as HTMLInputElement).value).toBe('gpt-6.1-sol')
   })
 
   it('saves GPT Image 2.5 quality and custom dimensions while rejecting incomplete sizes', async () => {
@@ -349,6 +421,8 @@ describe('Codex Image Creation tool view', () => {
       seq: 3,
       time: 30,
       callId: 'call-1',
+      name: 'generate_image',
+      args: PartialArguments.fromObject({ prompt: 'fox' }),
       call: { name: 'generate_image', argsRaw: '{"prompt":"fox"}' },
       callTime: 10,
       content: [{ type: 'image', attachment }],
@@ -375,6 +449,8 @@ describe('Codex Image Creation tool view', () => {
     const block: ToolCallBlock = {
       callId: 'call-1',
       name: 'generate_image',
+      phase: 'start',
+      args: PartialArguments.fromObject({ prompt: 'fox' }),
       argsRaw: '{"prompt":"fox"}',
       turn: 1,
       step: 1,
@@ -391,7 +467,7 @@ describe('Codex Image Creation tool view', () => {
 describe('client plugin registration', () => {
   it('registers one settings row and keyed views for both image tools', () => {
     const registered: Array<Record<string, unknown>> = []
-    const scopes = new Map([
+    const scopes = new Map<string, ConfigForm<unknown>>([
       ['llm-codex-auth', fakeScope(LLM).scope],
       ['codex-search', fakeScope(SEARCH).scope],
       ['codex-image', fakeScope(IMAGE).scope],
@@ -433,6 +509,8 @@ describe('client plugin registration', () => {
       seq: 4,
       time: 40,
       callId: 'call-list',
+      name: 'list_images',
+      args: PartialArguments.EMPTY,
       call: { name: 'list_images', argsRaw: '{}' },
       callTime: 30,
       content: [],

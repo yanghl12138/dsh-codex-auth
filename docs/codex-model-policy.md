@@ -22,17 +22,35 @@ capacity must not be inferred from a public API model's total-context number.
 
 Missing GPT-6 descriptors use the matching GPT-5.6 transport template. The
 plugin changes explicit model fields only and keeps every existing provider
-descriptor. The long-context opt-in changes only contextWindow: GPT-6/6.1 uses
+descriptor. The fork retains seven independent model-ID boolean switches and
+its global serviceTier preference; the aggregate context switch is UI-only.
+The long-context opt-in changes only contextWindow: GPT-6/6.1 uses
 872K, while the pre-existing GPT-5.6 1M policy remains unchanged. Turning the
 setting off returns the original provider capacity; source objects are never
 mutated. The setting is a local compaction budget, not a backend entitlement.
+
+The optional per-profile `excludedModelIds` string array defaults to empty.
+Exact, case-sensitive ID filtering runs last, after descriptor completion and
+long-context policy. Unknown and duplicate IDs do not change any other model;
+no model is hard-coded as excluded. Remaining descriptors retain their fields
+and order and the source catalog is not mutated. The volatile field uses the
+existing `llm-codex-auth` Config Form and profile patch persistence, including
+the usual route update notification. GPT Auth offers a comma-separated editor
+that saves on blur or Enter and trims/deduplicates its input.
+
+The plugin does not change the selected model or old sessions when their model
+is excluded. Later resolution follows the host's `UNKNOWN_MODEL` behavior;
+excluding all models produces an empty catalog. Prepared calls resolve catalog
+visibility again on dispatch; already running requests are not cancelled.
+Visibility filtering is not a request
+permission check and does not alter authentication, Search or Image settings.
 
 Fallback reasoning maps explicitly mark Off unsupported with null. DSH minimal
 is a compatibility alias for low. Omitting an effort is not equivalent to none;
 the adapter explicitly supplies low for an unspecified GPT-6.1 Sol request.
 Explicit efforts remain unchanged. Ultra is a Codex orchestration mode and is
 not sent as a raw wire effort. Installed provider descriptors retain their own
-reasoning metadata. The pinned pi-ai 0.87.1 catalog supplies GPT-6 Sol/Luna
+reasoning metadata. The pinned pi-ai 1.1.0 catalog supplies GPT-6 Sol/Luna
 with `off: "none"`; those installed descriptors therefore advertise Off and
 send explicit none. Only missing-model fallback descriptors reject Off. Temperature is rejected for the known GPT-6/6.1 models
 before authentication, regardless of direct or prepared call entry point.
@@ -46,3 +64,12 @@ through the installed DSH/pi-ai provider. They use synthetic credentials and
 an offline transport, not a live account. This does not prove backend model
 availability, actual long-context acceptance, subscription quota, or live OAuth
 behavior. No release or package publication is part of this change.
+
+Exclusion regressions cover empty/omitted settings, exact matching, unknown and
+duplicate IDs, completed descriptors, long-context compatibility, source
+immutability, empty catalogs and missing-model failures before credentials or
+transport. Two synthetic profiles exercise the real Settings Forms, Config
+Editor and Loader path: edits remain isolated, persist, restore on restart and
+notify the live model catalog without remounting the plugin. Client tests cover
+save/clear, profile switching and write failure. Real user profiles and live
+requests are outside this verification boundary.

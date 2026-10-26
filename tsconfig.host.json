@@ -6,9 +6,13 @@
   "include": [
     "src/**/*.ts",
     "tests/dsh-upgrade.spec.ts",
+    "tests/package-version.spec.ts",
+    "tests/account-routes.spec.ts",
     "tests/codex-auth.spec.ts",
     "tests/codex-model-request.spec.ts",
     "tests/service-tier.spec.ts",
+    "tests/codex-context.spec.ts",
+    "tests/model-exclusion-settings.integration.spec.ts",
     "tests/rpc.spec.ts",
     "tests/search.spec.ts",
     "tests/image.spec.ts",

@@ -21,6 +21,7 @@ export interface LlmSettingsView {
   'gpt-6-sol': boolean
   'gpt-6.1-sol': boolean
   'gpt-6-luna': boolean
+  excludedModelIds?: string[]
 }
 
 const LONG_CONTEXT_FIELDS = [
@@ -248,6 +249,9 @@ export function CodexCapabilitySettings({
                 </div>
               ))}
             </div>
+            {llm.value === undefined ? null : (
+              <ModelExclusionControl scope={llmScope} snapshot={llm} t={t} onError={setError} />
+            )}
           </SettingsState>
         </article>
 
@@ -583,6 +587,47 @@ function SettingsState<T>({
   return children
 }
 
+function ModelExclusionControl({
+  scope,
+  snapshot,
+  t,
+  onError,
+}: {
+  scope: ConfigForm<LlmSettingsView>
+  snapshot: ConfigFormSnapshot<LlmSettingsView>
+  t: CodexCapabilitySettingsProps['t']
+  onError: (message: string | null) => void
+}): ReactNode {
+  const ids = (snapshot.value?.excludedModelIds ?? []).join(', ')
+  const [draft, setDraft] = useState(ids)
+  const [saving, setSaving] = useState(false)
+  const pending = useRef(false)
+  const hintId = useId()
+  useEffect(() => { setDraft(ids) }, [ids, scope])
+  const save = (): void => {
+    if (pending.current || !snapshot.writable) return
+    const next = [...new Set(draft.split(',').map(id => id.trim()).filter(Boolean))]
+    if (JSON.stringify(next) !== JSON.stringify(snapshot.value?.excludedModelIds ?? [])) {
+      pending.current = true
+      setSaving(true)
+      void writer(scope, onError, t)('excludedModelIds', next).finally(() => {
+        pending.current = false
+        setSaving(false)
+      })
+    }
+  }
+  return (
+    <div className={classes.formRows}>
+      <Control label={t('excludedModelIds')}>
+        <input aria-label={t('excludedModelIds')} aria-describedby={hintId} value={draft} disabled={!snapshot.writable || saving}
+          onChange={event => { if (!pending.current) setDraft(event.target.value) }} onBlur={save}
+          onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); save() } }} />
+      </Control>
+      <p className={classes.imageHint} id={hintId}>{t('excludedModelIdsHint')}</p>
+    </div>
+  )
+}
+
 function SearchControls({
   scope,
   snapshot,
@@ -741,7 +786,9 @@ function writer<T>(
 ): (field: string, value: unknown) => Promise<void> {
   return async (field, value) => {
     onError(null)
-    try { await scope.set(field, value) } catch (error) { onError(messageOf(error, t('writeFailed'))) }
+    try {
+      if (await scope.set(field, value) === false) onError(t('writeFailed'))
+    } catch (error) { onError(messageOf(error, t('writeFailed'))) }
   }
 }
 
@@ -756,6 +803,7 @@ async function writeLongContextFields(
     Promise.resolve().then(() => scope.set(field, enabled))))
   const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
   if (failure !== undefined) onError(messageOf(failure.reason, t('writeFailed')))
+  else if (results.some(result => result.status === 'fulfilled' && result.value === false)) onError(t('writeFailed'))
 }
 
 function localDate(value: string): string {

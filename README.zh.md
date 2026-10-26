@@ -1,13 +1,13 @@
 # dsh-codex-auth
 
-> **DSH 兼容性：** `0.3.3-rc.3` 以 DSH `0.2.0-rc.2` 与 pi-ai `0.87.1` 为基线。`0.3.3-rc.2` 仍针对 DSH `0.2.0-rc.1`，请将插件与 Host 一起升级；旧版 DSH 请使用兼容的插件版本。见[验证说明](docs/dsh-source-verification.md)。
+> **DSH 兼容性：** `0.3.4-rc.2` 支持已验证的 DSH `0.2.1-rc.1` / `0.2.1-rc.2` 完整依赖图及 pi-ai `1.1.0`。实验性 peer 的有限范围 `0.2.1-rc.1 || 0.2.1-rc.2` 不接受未来 rc 或稳定版，仍拒绝混合依赖图，不添加版本豁免。`0.3.4-rc.1` 仅适配 rc.1，`0.3.3-rc.4` 针对 DSH `0.2.0-rc.2`。见[验证说明](docs/dsh-source-verification.md)。
 
 [![npm rc version](https://img.shields.io/npm/v/dsh-codex-auth/rc.svg?label=npm%20rc)](https://www.npmjs.com/package/dsh-codex-auth)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
 [English](README.md) | 中文
 
-发布版本：**v0.3.3-rc.3**（npm 标签：`rc`）。
+发布版本：**v0.3.4-rc.2**（npm 标签：`rc`）。
 
 这是一个自包含的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 **Codex 能力包**。它复用官方 **Codex CLI** 维护的 ChatGPT 登录态
@@ -23,6 +23,18 @@
 > **⚠️ 非官方通道——仅限个人开发。** 私有、受账户权限控制的
 > `chatgpt.com/backend-api` 未获官方支持、可随时撤销，也可能在没有通知的情况下被限流
 > 或变更。请勿依赖它承载生产任务。
+
+## 0.3.4-rc.2：DSH 0.2.1-rc.1 / rc.2
+
+无需版本豁免即可支持两个已验证的 rc 依赖图，并修正通过 Host 解析器读取运行时包版本的方式。上游记录两个依赖图各通过 456 项离线测试，并验证隔离 profile 的官方安装、Host 加载及卸载；这些上游结果与本 Fork 的合并检查分开记录。真实 OAuth、模型、搜索和生图服务属于独立验证范围。
+
+## 0.3.4-rc.1：DSH 0.2.1-rc.1
+
+更新完整依赖图和经过所有者认证的 browser Peer 接口，移除已退役的 invariant companion，并保留不读取或刷新登录态的静态 Codex 模型目录。对于旧 Native digest 尚未表达的工具搜索或会话中指令更新，创建与回放均保守使用 Portable 文本；V4 会话和 codec v1 不变。源码验证同时应用 Desktop 的准确 pi-ai 1.1.0 运行时补丁。见[升级细节与验证边界](docs/dsh-source-verification.md#upgrade-from-dsh-020-rc2)。
+
+## 0.3.3-rc.4：每个 profile 的模型排除列表
+
+新增默认空列表的 `excludedModelIds`，可通过 GPT Auth 的 LLM 设置实时编辑并持久化。排除在目录补齐和长上下文策略之后按精确 ID 执行，保留其余模型的描述符、参数与顺序；没有默认屏蔽模型，不改写认证、模型选择或既有会话。
 
 ## 0.3.3-rc.3：DSH 0.2.0-rc.2
 
@@ -80,11 +92,11 @@
   即使旧总开关曾经开启也不会自动延续；请到 GPT Auth 设置中重新启用所需模型。
   DSH 0.2 改用 `llm-codex-auth` Config Form，旧 `codex-llm` namespace 中的逐模型设置
   也不会自动迁移；升级后请检查并重新启用所需开关。
-- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 跟随上游适配 DSH `0.2.0-rc.2`
-  和 pi-ai `0.87.1`。
+- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 跟随上游适配 DSH `0.2.1-rc.1` / `0.2.1-rc.2`
+  和 pi-ai `1.1.0`。
 - 在「LLM 设置」中增加全局「服务档位」下拉框，使用 `llm-codex-auth` Config Form
   的 `serviceTier` 字段：`inherit`（不覆盖，默认）、`default`（标准）、`fast`
-  （为兼容 pi-ai `0.87.1`，发送 `service_tier: "priority"`）。配置缺少该字段时默认
+  （为兼容 pi-ai `1.1.0`，发送 `service_tier: "priority"`）。配置缺少该字段时默认
   不覆盖，不改变模型开关。保存后对新的 Codex LLM 请求生效，包括 Native 压缩；
   不影响网页搜索和图片创作。上下文一键开关不会修改服务档位，也不迁移旧 `codex-llm`
   namespace 中的偏好。
@@ -102,16 +114,43 @@ DSH 已经压缩的历史。
 
 ### Codex 模型与长上下文
 
-锁定的 pi-ai `0.87.1` 目录已提供 GPT-6 Astra、Sol、Luna，插件保留这些描述符。
-缺少的 GPT-6/6.1 模型以对应 GPT-5.6 描述符补入，默认上下文为 272,000 Token。
-独立开关沿用上游 Codex OAuth 策略：**GPT-6/6.1 为 872,000 Token**，
-**GPT-5.6 为 1,000,000 Token**。这是本地压缩预算，不会协商后端容量或赋予账户权限。
+本仓库锁定的 pi-ai `1.1.0` 目录已包含 GPT-6 Astra。插件会在缺项时以对应的
+GPT-5.6 描述符为模板，补入 GPT-6 Sol（`gpt-6-sol`）、Luna（`gpt-6-luna`）和
+GPT-6.1 Sol（`gpt-6.1-sol`）；已由上游提供的描述符保持不变。
+回退描述符默认使用 272,000 Token 上下文。本 Fork 默认关闭的**逐模型长上下文**开关独立设置预算：
+**GPT-6/6.1 为 872,000 Token**，支持的 GPT-5.6 模型保持原有 1,000,000 Token 策略。
+合并上游时保留已有模型 ID 开关和全局 `serviceTier` 偏好，不重新引入上游的 `longContextEnabled` 字段。
+GPT-6 的预算以 Codex OAuth 元数据为依据，不套用公开 API 的上下文上限。
+DSH 据此计算 Token 压力和压缩时机；这不会协商后端容量或赋予账户使用权限，
+也无法恢复已经压缩的历史。长请求可能更快消耗账户配额。
 
 回退描述符提供 `low`、`medium`、`high`、`xhigh`、`max`；`minimal` 映射到 `low`，
 不支持 `Off`/`Ultra`。已安装的 Sol/Luna 描述符保留上游 Off 支持，显式发送 `none`。
 GPT-6.1 Sol 未选择推理档位时使用 Codex 的 `low` 默认值。
 所有 GPT-6/6.1 模型都在解析凭据或发送请求前拒绝显式 `temperature`（包括 `0`）。
 详见[模型策略依据与验证边界](docs/codex-model-policy.md)。
+
+每个 profile 可通过可选的 `excludedModelIds`（默认 `[]`）隐藏精确模型 ID。
+在 **GPT Auth → LLM 设置 → 排除的模型 ID** 中以逗号分隔填写；按回车或离开输入框
+时，经现有 `llm-codex-auth` Config Form 保存到当前 profile patch，并实时更新目录。
+编辑器会去除两端空白、空项和重复项；原生 profile 配置使用字符串数组，例如：
+
+```yaml
+- id: llm-codex-auth
+  config:
+    excludedModelIds:
+      - gpt-5.3-codex-spark
+```
+
+默认不排除任何模型。按大小写敏感的精确 ID 匹配，不支持通配符；未知 ID 无影响，
+重复 ID 无副作用。排除在缺失模型补齐和长上下文策略之后执行，保留其余模型的描述符、
+参数及顺序。清空列表即可恢复目录。它仅影响此 profile 的 `openai-codex` LLM 目录，
+不影响搜索或图片设置、认证、账户权益或请求权限。
+
+排除当前模型时，模型选择和既有会话保持不变；之后解析该模型沿用 DSH 的
+`UNKNOWN_MODEL` 错误。请重新选择剩余模型，或取消该 ID 的排除后继续。
+允许排除全部模型，此时 Codex 目录为空。已经准备好的调用在实际发送时仍会解析目录
+可见性；正在执行的请求不会被取消。排除列表不是访问控制机制。
 
 ### 实验性 Dual Checkpoint 压缩 Adapter
 
@@ -200,7 +239,7 @@ Codex 请求会增加 Native 同级表示，任何不兼容或 Native 失败都�
 Checkpoint。即使下一次兼容 provider 请求实际回放 Native，stock conversation 视图仍会
 刻意显示 Portable 文本。
 
-该实验性导出支持完整一致的 DSH / Basic compaction `0.2.0-rc.2` 图，要求 pi-ai `0.87.1`；
+该实验性导出支持完整一致的 DSH / Basic compaction `0.2.1-rc.1` 图，要求 pi-ai `1.1.0`；
 在其他版本组合上挂载会给出可操作的兼容性错误并失败。长上下文模式可以改变 pressure
 压缩的触发时机，但不会改变 Native activation、codec、retention、v2 payload、回放兼容性
 或一次性 turn-continuation 契约。回滚时只需重新选择 DSH 内置 preset；已有会话仍可通过
@@ -237,14 +276,14 @@ Basic 负责。
 只有当 checkpoint 的 schema/codec/retention generation、provider、精确 model、哈希后的
 Codex account identity、instructions、tools、parallel/tool-choice controls、reasoning、text
 配置与 service tier 都匹配**最终生效**的 Responses 请求时，才会执行 Native 回放。Pi-ai
-`0.87.1` 可能把 GPT-5.6 的 deferred tools 编码为 `additional_tools` input item；该语义历史
+`1.1.0` 可能把 deferred tools 编码为 `additional_tools`、`tool_search_call` 或 `tool_search_output` input item；这些项目和会话中 system/developer 消息的语义历史
 不在当前 codec 的兼容 digest 内，因此这类 payload 在回放和新建 Native 时都会保守改用
 Portable 文本。组合的 payload callback 可以改变已有建模控制项；callback 完成后会重新判定
 并选择 Native 或 Portable。
 Request ID、prompt-cache key、临时 header、turn state 与 Long Context Mode 不参与兼容性。
 未知、损坏、超过 2 MiB、含 secret、混合格式或不兼容的状态会退化为 Portable 文本。生成的
 marker 只存在于 Host；marker 缺失、重复、嵌入、泄漏或未消费时会在网络请求之前失败。
-回放 converter 要求 DSH LLM / pi-ai Adapter 同为 `0.2.0-rc.2`，且 pi-ai 为 `0.87.1`；混合或其他
+回放 converter 要求 DSH LLM / pi-ai Adapter 同为 `0.2.1-rc.1`，且 pi-ai 为 `1.1.0`；混合或其他
 runtime 组合只使用 Portable 文本。Adapter generation 替换或 HMR 会使进程内 replay 与
 turn-continuation 状态失效，但不会修改持久化 Dual Checkpoint。
 
@@ -366,7 +405,7 @@ DSH alpha.5 会把持久化 `tool/call` 与 `tool/result` 事件分别投影为 
 
 ## 环境要求
 
-- DeepSeek Harness `0.2.0-rc.2`（统一依赖图）；不要与旧 rc 包族混装。
+- DeepSeek Harness `0.2.1-rc.1`（统一依赖图）；不要与旧 rc 包族混装。
 - Node.js `^22.19.0` 或 `>=24.0.0`。
 - `PATH` 中可用 `pnpm`（本项目测试版本为 `11.7.0`）。
 - `codex` CLI 已加入 `PATH`。
@@ -374,11 +413,11 @@ DSH alpha.5 会把持久化 `tool/call` 与 `tool/result` 事件分别投影为 
 
 ## 安装
 
-见[升级证据与测试方法](docs/dsh-source-verification.md#upgrade-from-dsh-020-rc1)。先停止 `dsh web`，确认目标 Host 使用统一的 DSH `0.2.0-rc.2` 依赖图，再将此准确预发布版本安装到目标 profile：
+见[升级证据与测试方法](docs/dsh-source-verification.md#upgrade-from-dsh-020-rc2)。先停止 `dsh web`，确认目标 Host 使用统一的 DSH `0.2.1-rc.1` 依赖图，再将此准确预发布版本安装到目标 profile：
 
 ```sh
 dsh --version
-dsh plugin --profile web add dsh-codex-auth@0.3.3-rc.3
+dsh plugin --profile web add dsh-codex-auth@0.3.4-rc.2
 dsh plugin --profile web list
 ```
 
@@ -405,6 +444,7 @@ dsh plugin --profile web list
 | `refreshLeadMs` | `300000` | token 到期前的刷新提前量（毫秒） |
 | `codexCommand` | `codex` | 登录和版本探测使用的 CLI 命令 |
 | `displayName` | `OpenAI Codex (chatgpt)` | 模型选择器中的 provider 名称 |
+| `excludedModelIds` | `[]` | 每个 profile 在目录补齐及上下文策略之后按精确 ID 隐藏的模型；可通过 GPT Auth 设置编辑 |
 | `transport` | `sse` | 流式传输方式：`sse`、`websocket` 或 `auto`（优先 WebSocket、失败回退 SSE）。默认 SSE：WebSocket 升级在常见 HTTP 代理下不稳定，且 `auto` 模式下每个新对话都要先付出连接超时才会回退 |
 | `websocketConnectTimeoutMs` | `5000` | WebSocket 连接超时（毫秒，仅当 `transport` 不是 `sse` 时生效；`0` 表示禁用） |
 | `timeoutMs` | `120000` | 请求超时（毫秒，SSE 响应头阶段；同时作为 WebSocket 消息空闲间隔；`0` 表示禁用） |
@@ -451,7 +491,6 @@ pnpm run check
 - `lib/image.js`：图片 Host 插件；
 - `lib/compaction.js`：供自定义 preset 使用的实验性 Dual Checkpoint 压缩 Adapter；
 - `lib/native-checkpoint.js`：版本化 Host codec 与回放兼容性契约；
-- `lib/invariant.js`：invariant companion；
 - `lib/client.cjs`：兼容 Loader、内联 CSS Modules 的浏览器插件；
 - `lib/types/**`：类型声明。
 

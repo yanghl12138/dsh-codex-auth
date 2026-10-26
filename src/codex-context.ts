@@ -105,13 +105,16 @@ export type CodexServiceTier = 'inherit' | 'default' | 'fast'
 /** Live context and request preferences owned by the openai-codex route. */
 export type CodexLlmSettings = Record<typeof CODEX_LONG_CONTEXT_MODEL_IDS[number], boolean> & {
   serviceTier: CodexServiceTier
+  /** Exact model IDs hidden from this profile's catalog; omission preserves the catalog. */
+  excludedModelIds?: string[]
 }
 
 export function createDefaultCodexLlmSettings(): CodexLlmSettings {
   return {
-    ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, false])),
+    ...Object.fromEntries(CODEX_LONG_CONTEXT_MODEL_IDS.map(id => [id, false])) as Record<typeof CODEX_LONG_CONTEXT_MODEL_IDS[number], boolean>,
     serviceTier: 'inherit',
-  } as CodexLlmSettings
+    excludedModelIds: [],
+  }
 }
 
 export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object({
@@ -119,26 +122,30 @@ export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object({
     [K in typeof CODEX_LONG_CONTEXT_MODEL_IDS[number]]: z<boolean>
   },
   serviceTier: z.union([z.const('inherit'), z.const('default'), z.const('fast')]).default('inherit'),
+  excludedModelIds: z.array(z.string()).default([]),
 })
 
 /**
  * Keep the generated pi-ai catalog intact and overlay GPT-6 models only when
  * that installed catalog omits them. Enabling Long Context Mode then changes
  * only the individually enabled long-context models; every other descriptor
- * and every non-capacity field remains provider-owned.
+ * and every non-capacity field remains provider-owned. Exact ID exclusions
+ * apply last, including to overlay models, without mutating source objects.
  */
 export function applyCodexContextPolicy(
   models: readonly Model<Api>[],
   settings: CodexLlmSettings,
 ): readonly Model<Api>[] {
-  const catalog = ensureCodexCatalogModels(models)
-  if (!CODEX_LONG_CONTEXT_MODEL_IDS.some(id => settings[id])) return catalog
-  return catalog.map(model => {
+  const completeCatalog = ensureCodexCatalogModels(models)
+  const catalog = !CODEX_LONG_CONTEXT_MODEL_IDS.some(id => settings[id]) ? completeCatalog : completeCatalog.map(model => {
     const contextWindow = codexLongContextWindow(model.id)
     return contextWindow !== undefined && settings[model.id as typeof CODEX_LONG_CONTEXT_MODEL_IDS[number]]
       ? { ...model, contextWindow }
       : model
   })
+  if (!settings.excludedModelIds?.length) return catalog
+  const excluded = new Set(settings.excludedModelIds)
+  return catalog.filter(model => !excluded.has(model.id))
 }
 
 function ensureCodexCatalogModels(models: readonly Model<Api>[]): readonly Model<Api>[] {

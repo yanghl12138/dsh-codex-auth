@@ -8,20 +8,21 @@ import { pathToFileURL } from 'node:url'
 import semver from 'semver'
 import { DSH_BASELINE, DSH_SOURCE_VERSION, DSH_VERIFY_VERSION, DSH_EXPERIMENTAL_PEER_RANGE, resolvedDshPackages } from './dsh-compatibility.mjs'
 
-const CODEX_COMPACTION_DSH_VERSION = '0.2.0-rc.2'
+const CODEX_COMPACTION_DSH_RANGE = DSH_EXPERIMENTAL_PEER_RANGE
 const EXPERIMENTAL_DSH_PEERS = [
   '@deepseek-ai/dsh-compaction',
   '@deepseek-ai/dsh-compaction-basic',
   '@deepseek-ai/dsh-token-meter',
 ]
-const PI_AI_VERSION = '0.87.1'
+const PI_AI_VERSION = '1.1.0'
 const EXACT_SUPPORT_PACKAGES = {
-  '@deepseek-ai/cordis': '4.0.4',
-  '@deepseek-ai/schemastery': '3.18.4',
+  '@deepseek-ai/cordis': '4.0.5',
+  '@deepseek-ai/schemastery': '3.18.5',
 }
 const RETIRED_DSH_PACKAGES = [
   '@deepseek-ai/dsh-client-runtime',
   '@deepseek-ai/dsh-host-apiproxy',
+  '@deepseek-ai/dsh-invariants',
 ]
 const SEMVER_OPTIONS = { includePrerelease: true }
 const sourceRoot = resolve(import.meta.dirname, '..')
@@ -48,6 +49,7 @@ try {
     throw new Error(`package smoke: CHANGELOG.md lacks release ${String(manifest.version)}`)
   }
   const requiredDocumentation = [
+    'docs/codex-model-policy.md',
     'docs/gpt-image-2.5-compatibility.md',
     'docs/design.md',
     'docs/adr/0003-isolate-experimental-codex-compaction.md',
@@ -114,7 +116,7 @@ try {
     for (const section of ['peerDependencies', 'devDependencies']) {
       if (manifest[section]?.[name] !== (section === 'peerDependencies' ? DSH_EXPERIMENTAL_PEER_RANGE : DSH_VERIFY_VERSION)) {
         throw new Error(
-          `package smoke: ${section}.${name} must pin ${CODEX_COMPACTION_DSH_VERSION}`,
+          `package smoke: ${section}.${name} must declare the verified ${CODEX_COMPACTION_DSH_RANGE} graph`,
         )
       }
     }
@@ -193,10 +195,10 @@ try {
       || highestDeclaredDshVersions.get(name) !== DSH_VERIFY_VERSION)
   if (stale.length > 0) {
     throw new Error(
-      `package smoke: pnpm-lock.yaml resolves declared DSH below ${CODEX_COMPACTION_DSH_VERSION}: ${stale.join(', ')}`,
+      `package smoke: pnpm-lock.yaml resolves declared DSH below ${CODEX_COMPACTION_DSH_RANGE}: ${stale.join(', ')}`,
     )
   }
-  const hostExports = ['.', './search', './image', './invariant', './compaction']
+  const hostExports = ['.', './search', './image', './compaction']
   for (const key of hostExports) {
     const target = manifest.exports?.[key]?.default
     const types = manifest.exports?.[key]?.types
@@ -208,15 +210,23 @@ try {
     await access(resolve(packageRoot, types))
     const loaded = await import(pathToFileURL(absolute).href)
     if (typeof loaded.apply !== 'function') throw new Error(`package smoke: ${key} has no apply export`)
+    if (key === '.') {
+      const defaults = loaded.Config({})
+      const configured = loaded.Config({ excludedModelIds: ['gpt-5.3-codex-spark'] })
+      if (JSON.stringify(defaults.excludedModelIds.get()) !== '[]'
+        || JSON.stringify(configured.excludedModelIds.get()) !== '["gpt-5.3-codex-spark"]') {
+        throw new Error('package smoke: excludedModelIds must be a live, default-empty string array')
+      }
+    }
   }
   const compactionTarget = manifest.exports?.['./compaction']?.default
   const compaction = await import(pathToFileURL(resolve(packageRoot, compactionTarget)).href)
   if (typeof compaction.CodexCompactionEngine !== 'function') {
     throw new Error('package smoke: compaction export has no CodexCompactionEngine')
   }
-  if (compaction.CODEX_COMPACTION_COMPATIBILITY?.dsh !== CODEX_COMPACTION_DSH_VERSION
+  if (compaction.CODEX_COMPACTION_COMPATIBILITY?.dsh !== CODEX_COMPACTION_DSH_RANGE
     || compaction.CODEX_COMPACTION_COMPATIBILITY?.piAi !== PI_AI_VERSION) {
-    throw new Error('package smoke: compaction export does not advertise the pinned runtime pair')
+    throw new Error('package smoke: compaction export does not advertise the verified runtime graphs')
   }
   compaction.assertCodexCompactionCompatibility()
 
@@ -229,12 +239,12 @@ try {
   await access(checkpointTarget)
   await access(resolve(packageRoot, checkpointExport.types))
   const checkpoint = await import(pathToFileURL(checkpointTarget).href)
-  if (checkpoint.CODEX_NATIVE_REPLAY_COMPATIBILITY?.dsh !== CODEX_COMPACTION_DSH_VERSION
+  if (checkpoint.CODEX_NATIVE_REPLAY_COMPATIBILITY?.dsh !== CODEX_COMPACTION_DSH_RANGE
     || checkpoint.CODEX_NATIVE_REPLAY_COMPATIBILITY?.piAi !== PI_AI_VERSION
     || typeof checkpoint.encodeCodexNativeCheckpoint !== 'function'
     || typeof checkpoint.decodeCodexNativeCheckpoint !== 'function'
     || checkpoint.isCodexNativeReplayRuntimeCompatible() !== true) {
-    throw new Error('package smoke: native-checkpoint export lacks its pinned codec/replay contract')
+    throw new Error('package smoke: native-checkpoint export lacks its verified codec/replay contract')
   }
 
   const presetRoot = resolve(packageRoot, 'examples/agent-presets/codex-portable')

@@ -74,9 +74,18 @@ The `llm-codex-auth` Config Form stores seven default-off volatile model-ID bool
 
 GPT-6.1 Sol uses the GPT-5.6 Sol template with its own pricing and required reasoning: `off` is unavailable, `minimal` maps to `low`, and unspecified effort defaults to Codex low. Explicit `temperature` is rejected before credential resolution. The seven fields preserve supplied per-model values and default omitted fields off. Old global and per-model `codex-llm` settings are not automatically migrated to the new entry-ID-based Config Form; users should re-enable their preferred models after upgrading from DSH 0.1.5. Branch `1.5.x` preserves the old compatibility baseline.
 
+The same Config Form also stores default-empty `excludedModelIds` and the global
+`serviceTier` preference. Exact, case-sensitive exclusions filter only after
+model completion and independent context budgets. Context or exclusion changes
+retire the route generation and notify catalog consumers; tier-only or unchanged
+catalog settings leave in-flight replay plans intact. Static catalog reads never
+resolve Login State, while actual requests still require authentication. Tier
+policy snapshots at dispatch after user payload callbacks and before final
+Native replay validation; `fast` sends `priority`, and Search/Image are unchanged.
+
 The route defaults to SSE and exposes `sse`, `websocket`, and `auto` transport selection. `websocketConnectTimeoutMs` bounds the WebSocket handshake, while `timeoutMs` bounds the SSE response-header phase or the WebSocket message-idle interval; neither setting is presented as a whole-stream deadline, and `0` explicitly disables the corresponding timeout.
 
-Installed pi-ai `0.87.1` does not model Codex standalone search, Responses `web_search`, or image-generation result items. Search and image creation therefore do not modify or inject payloads into `PiAiAdapter`; they use dedicated capability plugins and the official Codex standalone endpoints.
+Installed pi-ai `1.1.0` does not model Codex standalone search, Responses `web_search`, or image-generation result items. Search and image creation therefore do not modify or inject payloads into `PiAiAdapter`; they use dedicated capability plugins and the official Codex standalone endpoints.
 
 ## Dual Checkpoint compaction
 
