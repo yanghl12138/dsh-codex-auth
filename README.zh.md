@@ -1,6 +1,6 @@
 # dsh-codex-auth
 
-> **DSH 兼容性：** `0.3.4-rc.2` 支持已验证的 DSH `0.2.1-rc.1` / `0.2.1-rc.2` 完整依赖图及 pi-ai `1.1.0`。实验性 peer 的有限范围 `0.2.1-rc.1 || 0.2.1-rc.2` 不接受未来 rc 或稳定版，仍拒绝混合依赖图，不添加版本豁免。`0.3.4-rc.1` 仅适配 rc.1，`0.3.3-rc.4` 针对 DSH `0.2.0-rc.2`。见[验证说明](docs/dsh-source-verification.md)。
+> **DSH 兼容性：** Unreleased 工作区新增 DSH `0.2.1-rc.3` 完整依赖图支持，同时保留 rc.1/rc.2 及 pi-ai `1.1.0`。实验性 peer 有限范围为 `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3`，继续拒绝混合依赖图、未来 rc 和稳定版，不添加版本豁免。已发布的 `0.3.4-rc.2` 仍仅支持 rc.1/rc.2。见[验证说明](docs/dsh-source-verification.md)。
 
 [![npm rc version](https://img.shields.io/npm/v/dsh-codex-auth/rc.svg?label=npm%20rc)](https://www.npmjs.com/package/dsh-codex-auth)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -23,6 +23,10 @@
 > **⚠️ 非官方通道——仅限个人开发。** 私有、受账户权限控制的
 > `chatgpt.com/backend-api` 未获官方支持、可随时撤销，也可能在没有通知的情况下被限流
 > 或变更。请勿依赖它承载生产任务。
+
+## Unreleased：DSH 0.2.1-rc.3
+
+插件加载、实验性压缩和 Native 回放新增 rc.3 支持，无需版本豁免。开发依赖保持 rc.1，rc.2/rc.3 使用隔离官方源码验证。保留 V4 会话、checkpoint codec v1、既有设置和登录态格式。三个依赖图均通过 502 项离线测试及完整打包检查，详见[验证记录](docs/dsh-source-verification.md#rc3-verification-record)。
 
 ## 0.3.4-rc.2：DSH 0.2.1-rc.1 / rc.2
 
@@ -92,7 +96,7 @@
   即使旧总开关曾经开启也不会自动延续；请到 GPT Auth 设置中重新启用所需模型。
   DSH 0.2 改用 `llm-codex-auth` Config Form，旧 `codex-llm` namespace 中的逐模型设置
   也不会自动迁移；升级后请检查并重新启用所需开关。
-- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 跟随上游适配 DSH `0.2.1-rc.1` / `0.2.1-rc.2`
+- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 工作区适配 DSH `0.2.1-rc.1` / `0.2.1-rc.2` / `0.2.1-rc.3`
   和 pi-ai `1.1.0`。
 - 在「LLM 设置」中增加全局「服务档位」下拉框，使用 `llm-codex-auth` Config Form
   的 `serviceTier` 字段：`inherit`（不覆盖，默认）、`default`（标准）、`fast`

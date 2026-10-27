@@ -90,7 +90,12 @@ await writeFile(join(stage, 'artifacts.json'), JSON.stringify({
 }, null, 2) + '\n')
 const env = { ...process.env, DSH_VERIFY_VERSION: sourceVersion }
 function run(args) {
-  const result = spawnSync('pnpm', args, { cwd: checkout, env, stdio: 'inherit' })
+  // Reuse the invoking pnpm entry; Windows cannot spawn the bare .cmd shim.
+  const entry = process.env.npm_execpath ?? 'pnpm'
+  const script = /\.(?:c|m)?js$/u.test(entry)
+  const result = spawnSync(script ? process.execPath : entry, script ? [entry, ...args] : args, {
+    cwd: checkout, env, stdio: 'inherit',
+  })
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error('pnpm ' + args.join(' ') + ' failed; evidence: ' + stage)
 }

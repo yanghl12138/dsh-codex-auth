@@ -1,6 +1,6 @@
 # dsh-codex-auth
 
-> **DSH compatibility:** Version `0.3.4-rc.2` supports the verified coherent DSH `0.2.1-rc.1` and `0.2.1-rc.2` graphs with pi-ai `1.1.0`. Its finite experimental peer range `0.2.1-rc.1 || 0.2.1-rc.2` excludes future RCs and stable releases; mixed graphs remain refused. Version `0.3.4-rc.1` remains rc.1-only, and `0.3.3-rc.4` targets DSH `0.2.0-rc.2`. See [verification](docs/dsh-source-verification.md).
+> **DSH compatibility:** The Unreleased workspace adds coherent DSH `0.2.1-rc.3` support alongside rc.1/rc.2, with pi-ai `1.1.0`. The finite experimental peer range is `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3`; mixed graphs, future RCs, and stable releases remain refused. Published `0.3.4-rc.2` supports rc.1/rc.2 only. See [verification](docs/dsh-source-verification.md).
 
 [![npm rc version](https://img.shields.io/npm/v/dsh-codex-auth/rc.svg?label=npm%20rc)](https://www.npmjs.com/package/dsh-codex-auth)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -25,6 +25,10 @@ official **Codex CLI** (`~/.codex/auth.json`, or `$CODEX_HOME/auth.json`) for:
 > account-gated `chatgpt.com/backend-api` surface is unsupported, revocable, and
 > may be rate-limited or changed without notice. Do not rely on it for
 > production workloads.
+
+## Unreleased: DSH 0.2.1-rc.3
+
+Adds rc.3 to plugin admission, experimental compaction, and Native replay without a version exemption. Development dependencies remain on rc.1; rc.2/rc.3 use isolated official-source verification. Session V4, checkpoint codec v1, saved settings, and Login State keep their existing formats. Each of the three dependency graphs passed 502 offline tests and the complete package gate. See the [verification record](docs/dsh-source-verification.md#rc3-verification-record) for results.
 
 ## 0.3.4-rc.2: DSH 0.2.1-rc.1 / rc.2
 

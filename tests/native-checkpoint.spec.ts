@@ -21,6 +21,7 @@ import { CodexAuthAdapter } from '../src/codex-auth-adapter.ts'
 import { installForeignCheckpointProjection } from '../src/foreign-checkpoint-projection.ts'
 import type { CodexAuthAdapterOptions, CodexAuthTransport } from '../src/codex-auth-adapter.ts'
 import { createDefaultCodexLlmSettings } from '../src/codex-context.ts'
+import * as packageVersions from '../src/package-version.ts'
 import {
   codexNativeCheckpointCompatibilityDigest,
   hashCodexAccountIdentity,
@@ -164,7 +165,7 @@ describe('Codex Native Checkpoint codec', () => {
 
   it('pins replay to the observed DSH and pi-ai conversion pair', () => {
     expect(CODEX_NATIVE_REPLAY_COMPATIBILITY).toEqual({
-      dsh: '0.2.1-rc.1 || 0.2.1-rc.2',
+      dsh: '0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3',
       piAi: '1.1.0',
     })
     expect(isCodexNativeReplayRuntimeCompatible()).toBe(true)
@@ -185,7 +186,7 @@ describe('Codex Native Checkpoint codec', () => {
     }
   })
 
-  it.each(['0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3', '0.2.1'])('rejects the unverified %s converter and mixed RC graph', version => {
+  it.each(['0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3.1', '0.2.1-rc.4', '0.2.1'])('rejects the unverified %s converter and mixed RC graph', version => {
     expect(isCodexNativeReplayRuntimeCompatible({
       dshLlm: version, dshPiAi: version, piAi: '1.1.0',
     })).toBe(false)
@@ -660,7 +661,37 @@ async function collect(stream: AsyncIterable<unknown>): Promise<unknown[]> {
 }
 
 describe('Codex Native Checkpoint replay', () => {
-  it('replays the genuine rc.2 fixture on 0.2.1-rc.1 without rewriting its durable state', async () => {
+  it.each([
+    ['0.2.1-rc.1', '0.2.1-rc.2'],
+    ['0.2.1-rc.1', '0.2.1-rc.3'],
+    ['0.2.1-rc.2', '0.2.1-rc.1'],
+    ['0.2.1-rc.2', '0.2.1-rc.3'],
+    ['0.2.1-rc.3', '0.2.1-rc.1'],
+    ['0.2.1-rc.3', '0.2.1-rc.2'],
+  ])('sends only Portable text for the mixed LLM %s / pi-ai adapter %s graph', async (dshLlm, dshPiAi) => {
+    const payloads: unknown[] = []
+    const { ctx } = mountCodexAdapter(payloads)
+    const installedVersion = packageVersions.installedPackageVersion
+    const versions = vi.spyOn(packageVersions, 'installedPackageVersion').mockImplementation(specifier => {
+      if (specifier === '@deepseek-ai/dsh-llm') return dshLlm
+      if (specifier === '@deepseek-ai/dsh-llm-pi-ai') return dshPiAi
+      return installedVersion(specifier)
+    })
+    const options = replayOptions()
+    const before = JSON.stringify(options)
+    try {
+      await drain(ctx.llm.stream(options))
+      expect(payloads).toHaveLength(1)
+      expect(payloads[0]).toMatchObject({ input: expect.arrayContaining([portableUserPayloadItem()]) })
+      expect(JSON.stringify(payloads[0])).not.toContain('opaque-native-state')
+      expect(JSON.stringify(payloads[0])).not.toContain(CODEX_NATIVE_CHECKPOINT_BLOCK_TYPE)
+      expect(JSON.stringify(options)).toBe(before)
+    } finally {
+      versions.mockRestore()
+    }
+  })
+
+  it('replays the genuine rc.2 fixture on the verified runtime without rewriting its durable state', async () => {
     const durable = readFileSync(new URL('./fixtures/dsh-0.2.0-rc.2-session.json', import.meta.url), 'utf8')
     const fixture = JSON.parse(durable) as {
       producer: { dsh: string; plugin: string; piAi: string }; id: string;
@@ -1689,10 +1720,11 @@ describe('Codex Native Checkpoint replay', () => {
 })
 
 
-it.each(['0.2.1-rc.1', '0.2.1-rc.2'])('keeps Native replay available on coherent %s and falls back on mixed RCs', version => {
-  const other = version === '0.2.1-rc.1' ? '0.2.1-rc.2' : '0.2.1-rc.1'
+it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3'])('keeps Native replay available on coherent %s and falls back on mixed RCs', version => {
   expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: version, piAi: '1.1.0' })).toBe(true)
-  expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: other, piAi: '1.1.0' })).toBe(false)
-  expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: other, dshPiAi: version, piAi: '1.1.0' })).toBe(false)
+  for (const other of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3'].filter(candidate => candidate !== version)) {
+    expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: other, piAi: '1.1.0' })).toBe(false)
+    expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: other, dshPiAi: version, piAi: '1.1.0' })).toBe(false)
+  }
   expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: version, piAi: '1.1.1' })).toBe(false)
 })

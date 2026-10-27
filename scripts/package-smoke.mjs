@@ -5,6 +5,7 @@ import { access, mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import assert from 'node:assert/strict'
 import semver from 'semver'
 import { DSH_BASELINE, DSH_SOURCE_VERSION, DSH_VERIFY_VERSION, DSH_EXPERIMENTAL_PEER_RANGE, resolvedDshPackages } from './dsh-compatibility.mjs'
 
@@ -15,6 +16,8 @@ const EXPERIMENTAL_DSH_PEERS = [
   '@deepseek-ai/dsh-token-meter',
 ]
 const PI_AI_VERSION = '1.1.0'
+// Independent expectations catch drift between the manifest, config, and emitted guards.
+const VERIFIED_DSH_RUNTIMES = ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3']
 const EXACT_SUPPORT_PACKAGES = {
   '@deepseek-ai/cordis': '4.0.5',
   '@deepseek-ai/schemastery': '3.18.5',
@@ -28,7 +31,12 @@ const SEMVER_OPTIONS = { includePrerelease: true }
 const sourceRoot = resolve(import.meta.dirname, '..')
 const temporary = await mkdtemp(resolve(tmpdir(), 'dsh-codex-auth-package-smoke-'))
 try {
-  const output = execFileSync('npm', [
+  // Windows npm is a .cmd shim; run its JS entry directly without a shell.
+  const npmArgs = process.platform === 'win32'
+    ? [resolve(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')]
+    : []
+  const output = execFileSync(process.platform === 'win32' ? process.execPath : 'npm', [
+    ...npmArgs,
     'pack', '--json', '--ignore-scripts', '--pack-destination', temporary,
   ], {
     cwd: sourceRoot,
@@ -113,6 +121,12 @@ try {
     }
   }
   for (const name of EXPERIMENTAL_DSH_PEERS) {
+    for (const version of VERIFIED_DSH_RUNTIMES) {
+      assert(semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
+    }
+    for (const version of ['0.2.1-rc.3.1', '0.2.1-rc.4', '0.2.1']) {
+      assert(!semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
+    }
     for (const section of ['peerDependencies', 'devDependencies']) {
       if (manifest[section]?.[name] !== (section === 'peerDependencies' ? DSH_EXPERIMENTAL_PEER_RANGE : DSH_VERIFY_VERSION)) {
         throw new Error(
@@ -245,6 +259,24 @@ try {
     || typeof checkpoint.decodeCodexNativeCheckpoint !== 'function'
     || checkpoint.isCodexNativeReplayRuntimeCompatible() !== true) {
     throw new Error('package smoke: native-checkpoint export lacks its verified codec/replay contract')
+  }
+
+  for (const version of VERIFIED_DSH_RUNTIMES) {
+    const dsh = Object.fromEntries([
+      'agent', 'compaction', 'compaction-basic', 'llm', 'llm-pi-ai', 'session', 'token-meter',
+    ].map(name => ['@deepseek-ai/dsh-' + name, version]))
+    assert.doesNotThrow(() => compaction.assertCodexCompactionCompatibility({ dsh, piAi: PI_AI_VERSION }))
+    assert.equal(checkpoint.isCodexNativeReplayRuntimeCompatible({
+      dshLlm: version, dshPiAi: version, piAi: PI_AI_VERSION,
+    }), true)
+    for (const other of VERIFIED_DSH_RUNTIMES.filter(candidate => candidate !== version)) {
+      assert.throws(() => compaction.assertCodexCompactionCompatibility({
+        dsh: { ...dsh, '@deepseek-ai/dsh-session': other }, piAi: PI_AI_VERSION,
+      }))
+      assert.equal(checkpoint.isCodexNativeReplayRuntimeCompatible({
+        dshLlm: version, dshPiAi: other, piAi: PI_AI_VERSION,
+      }), false)
+    }
   }
 
   const presetRoot = resolve(packageRoot, 'examples/agent-presets/codex-portable')

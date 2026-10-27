@@ -4,6 +4,9 @@
 
 ### Fork feature updates
 
+- `compat`: Add coherent DSH `0.2.1-rc.3` admission, experimental compaction, and Native replay alongside rc.1/rc.2 without exemptions. Keep the rc.1 development graph and pi-ai `1.1.0`; expand rejection, Portable fallback, and packaged-artifact checks. Verification results are recorded in `docs/dsh-source-verification.md`.
+- `test`: Use platform-native auth-path expectations and executable npm/pnpm entrypoints so the complete package and source checks run on Windows.
+
 - `compat`: Merge upstream `0.3.4-rc.2` for coherent DSH `0.2.1-rc.1` / `0.2.1-rc.2` with pi-ai `1.1.0`, preserving saved per-model context keys and `serviceTier`. Add live `excludedModelIds` after catalog completion and context policy; exclusion changes republish the route while tier-only edits preserve in-flight replay plans.
 - `feat`: Add a global Codex LLM service-tier selector (No override, Standard, Fast) in the `llm-codex-auth` Config Form, preserving existing settings by default and applying the tier to streaming and Native compaction/replay without affecting Search or Image Creation. Fast is not an acceleration guarantee and may consume more quota.
 - `feat`: Add GPT-6 Sol and Luna to the Codex route when missing from pi-ai; reject unsupported explicit GPT-6 `temperature`.

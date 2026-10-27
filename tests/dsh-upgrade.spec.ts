@@ -30,6 +30,10 @@ const singleRcRelease = JSON.parse(readFileSync(
   new URL('./fixtures/dsh-codex-auth-0.3.4-rc.1-manifest.json', import.meta.url), 'utf8',
 )) as { manifest: typeof manifest }
 
+const twoRcRelease = JSON.parse(readFileSync(
+  new URL('./fixtures/dsh-codex-auth-0.3.4-rc.2-manifest.json', import.meta.url), 'utf8',
+)) as { manifest: typeof manifest }
+
 function profileFixture() {
   const dir = mkdtempSync(join(tmpdir(), 'codex-021rc1-profile-'))
   const ctx = new Context()
@@ -84,7 +88,7 @@ it('disables released 0.3.3-rc.4 on the verified runtime despite an old exact-ve
 
 it('admits all adapted bundle rows without a grant or rewriting synthetic settings and login state', async () => {
   const fixture = profileFixture()
-  expect(['0.2.1-rc.1', '0.2.1-rc.2']).toContain(targetRuntime)
+  expect(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3']).toContain(targetRuntime)
   writeFileSync(join(fixture.packageDir, 'package.json'), JSON.stringify(manifest))
   const files = {
     'settings.yaml': 'codex-llm:\n  longContextEnabled: true\n',
@@ -167,17 +171,38 @@ it.each([
 })
 
 
-it('reproduces the published single-RC installation rejection and accepts both verified RCs', () => {
+it('reproduces the published single-RC installation rejection and accepts all three verified RCs', () => {
   expect(evaluatePluginCompatibility(singleRcRelease.manifest, {}, '0.2.1-rc.1')).toBeUndefined()
   const rejected = evaluatePluginCompatibility(singleRcRelease.manifest, {}, '0.2.1-rc.2')
   expect(Object.keys(rejected?.requirements ?? {}).sort()).toEqual([...exactPeers].sort())
   expect(rejected?.exempted).toBe(false)
-  for (const runtime of ['0.2.1-rc.1', '0.2.1-rc.2']) {
+  for (const runtime of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3']) {
     expect(evaluatePluginCompatibility(manifest, {}, runtime)).toBeUndefined()
   }
 })
 
-it.each(['0.2.1-rc.0', '0.2.1-rc.1.1', '0.2.1-rc.2.1', '0.2.1-rc.3', '0.2.1', '0.2.2-rc.1', '0.3.0'])('does not admit unverified %s through prerelease range semantics', runtime => {
+it('rejects the frozen two-RC manifest on rc.3 even with a stale rc.2 exemption', () => {
+  for (const runtime of ['0.2.1-rc.1', '0.2.1-rc.2']) {
+    expect(evaluatePluginCompatibility(twoRcRelease.manifest, {}, runtime)).toBeUndefined()
+  }
+  const permissions = { [`${twoRcRelease.manifest.name}@${twoRcRelease.manifest.version}`]: ['0.2.1-rc.2'] }
+  const rejected = evaluatePluginCompatibility(twoRcRelease.manifest, permissions, '0.2.1-rc.3')
+  expect(Object.keys(rejected?.requirements ?? {}).sort()).toEqual([...exactPeers].sort())
+  expect(rejected?.exempted).toBe(false)
+
+  // With the actual rc.3 Host, exercise preflight for every bundle row too.
+  if (targetRuntime === '0.2.1-rc.3') {
+    const fixture = profileFixture()
+    writeFileSync(join(fixture.packageDir, 'package.json'), JSON.stringify(twoRcRelease.manifest))
+    writeFileSync(join(fixture.dir, 'compatibility.json'), JSON.stringify(permissions))
+    expect(prepareProfileEntries(fixture.ctx, fixture.rows, fixture.base).map(row => row.disabled))
+      .toEqual([true, true, true])
+    expect(fixture.diagnostics).toHaveBeenCalledTimes(3)
+    expect(readProfileCompatibility(fixture.dir).exemptions).toEqual(permissions)
+  }
+})
+
+it.each(['0.2.1-rc.0', '0.2.1-rc.1.1', '0.2.1-rc.2.1', '0.2.1-rc.3.1', '0.2.1-rc.4', '0.2.1', '0.2.2-rc.1', '0.3.0'])('does not admit unverified %s through prerelease range semantics', runtime => {
   const rejected = evaluatePluginCompatibility(manifest, {}, runtime)
   expect(rejected).toBeDefined()
   expect(rejected?.exempted).toBe(false)

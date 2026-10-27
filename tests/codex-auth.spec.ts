@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -1303,7 +1303,7 @@ describe('CodexAuthService', () => {
   })
 
   it('resolves the auth file path from CODEX_HOME, then ~/.codex', () => {
-    expect(defaultAuthJsonPath({ CODEX_HOME: '/x' })).toBe('/x/auth.json')
-    expect(defaultAuthJsonPath({})).toBe(join(process.env.HOME ?? '', '.codex', 'auth.json'))
+    expect(defaultAuthJsonPath({ CODEX_HOME: '/x' })).toBe(join('/x', 'auth.json'))
+    expect(defaultAuthJsonPath({})).toBe(join(homedir(), '.codex', 'auth.json'))
   })
 })

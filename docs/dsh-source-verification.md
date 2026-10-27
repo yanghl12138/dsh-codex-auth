@@ -1,20 +1,16 @@
 # DSH source compatibility verification
 
-Version `0.3.4-rc.2` verifies the coherent DSH `0.2.1-rc.1` and `0.2.1-rc.2` graphs. The registry development baseline remains rc.1; the default official-source target is rc.2 at `687f282e8625c6b8d11ff58211a90524be2e4317`. Development dependencies,
-the lockfile, peer ranges, and package smoke checks use this baseline. Codex's
-experimental compaction and Native replay additionally require pi-ai `1.1.0`
-and the exact DSH graph. Older plugin releases retain the earlier DSH support;
-the current checkout does not test or advertise that older graph.
+The Unreleased workspace accepts coherent DSH `0.2.1-rc.1`, `0.2.1-rc.2`, and `0.2.1-rc.3` graphs. Published `0.3.4-rc.2` supports only rc.1/rc.2. The registry development baseline and lockfile remain rc.1; the default official-source target is rc.3 at `1f81c047fc48fa190a683e469daa699857e9afe8`. Experimental compaction and Native replay additionally require pi-ai `1.1.0` and reject mixed DSH graphs. See the [verification record](#rc3-verification-record) for the checks actually completed.
 
 ## Build the official artifacts once
 
 Use a separate scratch directory, outside any plugin or live DSH installation:
 
 ```sh
-git clone --depth 1 --branch dsh-v0.2.1-rc.2 https://github.com/deepseek-ai/deepseek-harness.git harness
+git clone --depth 1 --branch dsh-v0.2.1-rc.3 https://github.com/deepseek-ai/deepseek-harness.git harness
 cd harness
 git rev-parse HEAD
-# Must be 687f282e8625c6b8d11ff58211a90524be2e4317.
+# Must be 1f81c047fc48fa190a683e469daa699857e9afe8.
 PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 pnpm install --frozen-lockfile --ignore-scripts
 pnpm run build:lib
 pnpm --filter './packages/**' --filter './vendor/*' -r pack --pack-destination ../dsh-packages
@@ -51,23 +47,48 @@ claim to authenticate arbitrary user-supplied tarballs. Its local file overrides
 and generated lockfile stay in the temporary directory. They never enter this
 repository, an installed package, or a user profile.
 
-Package smoke checks accept both registry and source-artifact lock identities
-while continuing to verify the selected version. Both registry and source
-checks target `0.2.1-rc.1`; source checks use `DSH_VERIFY_VERSION` explicitly.
+Package smoke checks accept registry and source-artifact lock identities while checking the selected coherent graph and all three supported compatibility guards in the emitted package. The registry check targets rc.1. Source checks default to rc.3; set `DSH_VERIFY_VERSION=0.2.1-rc.2` to repeat against rc.2 artifacts, or `0.2.1-rc.1` for rc.1. Build each artifact directory from its own pinned official source tag; never mix tarballs from different releases.
 
 ## 中文说明
 
 当前检出版本以已发布的 DSH `0.2.1-rc.1` 为开发与最低支持基线，
-锁文件、peer 与打包检查使用同一套依赖图。Codex 实验性压缩与 Native 回放
+主锁文件保持 rc.1，三个实验性 peer 显式接受 rc.1/rc.2/rc.3；打包检查核对所选完整依赖图。Codex 实验性压缩与 Native 回放
 还要求 pi-ai `1.1.0` 及准确的 DSH 版本；旧 DSH 请保留旧插件版本。
 
-按上面的固定 tag 构建、打包一次，然后在本插件目录运行
+按上面的固定 tag 构建、打包一次，rc.3 固定 tag 为 `dsh-v0.2.1-rc.3`，提交为 `1f81c047fc48fa190a683e469daa699857e9afe8`。然后在本插件目录运行
 `pnpm run check:dsh-source -- /绝对路径/dsh-packages /绝对路径/harness/patches/@earendil-works__pi-ai@1.1.0.patch`。脚本在临时目录内安装
 完整源码包图并运行全部检查，输出位置和制品哈希供复核。正式 package.json
 和锁文件不会写入本机临时路径，也不会安装到现用 profile。
 
 升级验证覆盖离线类型检查、测试、构建、打包 smoke 和 publint；
 真实 OAuth、私有服务请求和用户现用 profile 不属于这些离线检查的证明范围。
+
+## RC3 verification record
+
+Verified on Windows x64 on 2026-10-27. All plugin checks used Node `22.22.2` and pnpm `11.7.0`. Official source library builds used the upstream repository's declared pnpm `11.28.5`; no upstream package source was changed.
+
+| DSH | Dependency graph | Tests | Complete `pnpm run check` |
+| --- | --- | --- | --- |
+| 0.2.1-rc.1 | Registry baseline | 502 / 502 | Passed |
+| 0.2.1-rc.2 | Official source, 97 packages | 502 / 502 | Passed |
+| 0.2.1-rc.3 | Official source, 97 packages | 502 / 502 | Passed |
+
+The complete gate includes peer checks, oxlint, Host/client type checking, Vitest, Host/client builds, packed-artifact smoke, and publint. The rc.2/rc.3 checks use `pnpm run check:dsh-source` with their respective packed official dependency closures and the Desktop pi-ai patch. rc.2 explicitly sets `DSH_VERIFY_VERSION=0.2.1-rc.2`; rc.3 uses the new default. Both source graphs contain 97 packages, all DSH packages at the selected version, with pi-ai exactly `1.1.0` and patch SHA-256 `66eaf960054f10441b93ac3857114e96c1901f6d183713e2f21437b007111644`.
+
+Official inputs: rc.2 at `687f282e8625c6b8d11ff58211a90524be2e4317`; rc.3 at `1f81c047fc48fa190a683e469daa699857e9afe8`. The commit archives have SHA-256 `157903b22c2881d3678d846755afe957a48df834e747deda805a1195ce25a146` and `fc671f856222bef95c7f6bd65b5adfb6c09770ffd5b1f3f61b7b1e1cbe582c60`, respectively. When building an archive without Git metadata, set `DSH_CLIENT_COMMIT_HASH` to that archive's full official commit before the Desktop bundle step. Host and Client libraries were built for each graph.
+
+The regression suite exercises the frozen pre-adaptation manifest's three-peer rc.3 refusal, all adapted bundle rows without exemptions, all ordered mixed-RC pairs, Portable-only wire payloads for mixed replay runtimes, unknown prerelease/stable refusal, old V4 restore/fork/continuation, dual checkpoints, static model discovery, account RPC, settings, and image-tool rendering. Windows verification also fixes platform-dependent path assertions and launches npm/pnpm through executable entrypoints. The main manifest keeps its existing package version and rc.1 development dependencies; `pnpm install --frozen-lockfile` succeeds with the unchanged main lockfile, whose root dependency specifiers already pin the duplicated peers to rc.1. No lockfile resolution was upgraded.
+
+Logs and source inputs remain under `$TEMP/dsh-rc3-verification/` (`rc1-check.log`, `rc2-plugin-check.log`, `rc3-plugin-check.log`, source build/pack logs, archives, and tarballs). The isolated checkouts and complete per-package SHA-512 receipts remain at the following paths relative to `$TEMP`:
+
+| DSH | Receipt | Receipt SHA-256 |
+| --- | --- | --- |
+| 0.2.1-rc.2 | `dsh-codex-auth-dsh-source-fnvHnu/artifacts.json` | `bc456b45ee339a20f959befd5e95c68c57aa89a349b44efa42ffa1e1e54e4e25` |
+| 0.2.1-rc.3 | `dsh-codex-auth-dsh-source-U5OyXj/artifacts.json` | `abde052c3896cf07b6b17eeec1b8874d7c864b8493c4e88bfb9d1a1a94f76220` |
+
+These results cover offline compatibility of the Unreleased workspace. No npm release was published, no version exemption was granted, and no installed DSH profile was changed. Live OAuth, private model/search/image requests, and rendered installed Desktop behavior were not exercised.
+
+中文：rc.1 主依赖图与 rc.2/rc.3 隔离源码依赖图均通过完整检查，各 502 项测试全部通过。三版本混装继续被拒绝或使用既有 Portable 回退；主锁文件、包版本、V4 会话和 checkpoint 格式保持原状。上述记录属于 Unreleased 工作区的离线验证，不代表已发布 npm 包或真实后端联调。
 
 ## Upgrade from DSH 0.2.0-rc.2
 
@@ -128,11 +149,11 @@ Desktop rc.2 还新增自带的 CLI 管理入口，并读取 macOS login-shell �
 
 The installed Desktop may auto-update independently of a plugin release. The published 0.3.4-rc.1 package correctly remains the immutable rc.1-only artifact; its three exact optional peers are checked before installation and deny rc.2. Changing only peer metadata would still leave the Native replay and compaction gates refusing rc.2.
 
-This checkout declares the finite semver union `0.2.1-rc.1 || 0.2.1-rc.2` for those three peers and the same supported runtime set internally. The Host uses `semver.satisfies` with `includePrerelease: true`; explicit alternatives avoid accidentally admitting rc.1.1, rc.2.1, rc.3, stable 0.2.1, or another minor release. Every experimental runtime package must still belong to one identical supported graph, and pi-ai must still be exactly 1.1.0. No `engines.dsh` override or compatibility exemption bypasses peer checks.
+Released `0.3.4-rc.2` declares the finite semver union `0.2.1-rc.1 || 0.2.1-rc.2` for those three peers and the same supported runtime set internally. The Host uses `semver.satisfies` with `includePrerelease: true`; explicit alternatives avoid accidentally admitting rc.1.1, rc.2.1, rc.3, stable 0.2.1, or another minor release. Every experimental runtime package must still belong to one identical supported graph, and pi-ai must still be exactly 1.1.0. No `engines.dsh` override or compatibility exemption bypasses peer checks.
 
 Official tags: rc.1 = `1600d8a1e140dcde43a1a0941940a0480712c011`; rc.2 = `687f282e8625c6b8d11ff58211a90524be2e4317`. Comparing the 72 referenced Host/client/development packages finds source changes only in dsh-web: search/fetch configuration becomes volatile and is read for each request. Session, Basic compaction, token meter, LLM/pi-ai conversion, account RPC, plugin admission, Cordis and the exact pi-ai patch are unchanged. rc.2 also adds official DeepSeek search/fetch providers and display/settings plugins. Codex continues using the stock Web registration interface and the bundle's explicit provider selection; tests construct WebRuntime through its own Config schema so both contracts are exercised correctly.
 
-The complete package gate must pass separately on rc.1 and rc.2. For a packed official-source graph, set `DSH_VERIFY_VERSION=0.2.1-rc.1` to select the old pinned source identity, or omit it for the rc.2 source target. Do not mix source artifacts. Registry baseline scripts default to rc.1; alternate graph checks set `DSH_VERIFY_VERSION=0.2.1-rc.2` and install the complete rc.2 development closure in an isolated checkout.
+The complete package gate must pass separately on rc.1 and rc.2. For a packed official-source graph, set `DSH_VERIFY_VERSION=0.2.1-rc.1` to select the old pinned source identity, or set `DSH_VERIFY_VERSION=0.2.1-rc.2` for the rc.2 source target (the current default is rc.3). Do not mix source artifacts. Registry baseline scripts default to rc.1; alternate graph checks set `DSH_VERIFY_VERSION=0.2.1-rc.2` and install the complete rc.2 development closure in an isolated checkout.
 
 Version `0.3.4-rc.2` carries this compatibility update on the npm `rc` channel and GitHub prerelease channel. Installation and offline Host checks do not establish rendered Desktop UI, live OAuth, model, search backend or image-generation behavior.
 
