@@ -1,6 +1,6 @@
 # dsh-codex-auth
 
-> **DSH compatibility:** The Unreleased workspace adds coherent DSH `0.2.1-rc.3` support alongside rc.1/rc.2, with pi-ai `1.1.0`. The finite experimental peer range is `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3`; mixed graphs, future RCs, and stable releases remain refused. Published `0.3.4-rc.2` supports rc.1/rc.2 only. See [verification](docs/dsh-source-verification.md).
+> **DSH compatibility:** The Unreleased workspace supports coherent DSH `0.2.1-rc.1` through `0.2.1-rc.5` graphs, with pi-ai `1.1.0`. The finite experimental peer range is `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5`; mixed graphs, future RCs, and stable releases remain refused. Published `0.3.4-rc.2` supports rc.1/rc.2 only. See [verification](docs/dsh-source-verification.md).
 
 [![npm rc version](https://img.shields.io/npm/v/dsh-codex-auth/rc.svg?label=npm%20rc)](https://www.npmjs.com/package/dsh-codex-auth)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -26,9 +26,9 @@ official **Codex CLI** (`~/.codex/auth.json`, or `$CODEX_HOME/auth.json`) for:
 > may be rate-limited or changed without notice. Do not rely on it for
 > production workloads.
 
-## Unreleased: DSH 0.2.1-rc.3
+## Unreleased: DSH 0.2.1-rc.4 / rc.5
 
-Adds rc.3 to plugin admission, experimental compaction, and Native replay without a version exemption. Development dependencies remain on rc.1; rc.2/rc.3 use isolated official-source verification. Session V4, checkpoint codec v1, saved settings, and Login State keep their existing formats. Each of the three dependency graphs passed 502 offline tests and the complete package gate. See the [verification record](docs/dsh-source-verification.md#rc3-verification-record) for results.
+Adds rc.4/rc.5 to plugin admission, experimental compaction, and Native replay without version exemptions, retaining rc.1–rc.3 support. Development dependencies remain on rc.1; the default isolated official-source target is rc.5. Session V4, checkpoint codec v1, saved settings, and Login State retain their formats. See the [verification record](docs/dsh-source-verification.md#rc4--rc5-verification-record) for completed checks and limitations.
 
 ## 0.3.4-rc.2: DSH 0.2.1-rc.1 / rc.2
 
@@ -108,7 +108,7 @@ This fork adds the following Codex model and request controls:
   namespace, so old per-model preferences are not automatically migrated either.
   Check and re-enable your preferred switches after upgrading.
 - Keeps the DSH `0.1.5`-compatible version on branch `1.5.x`; `main` now follows
-  upstream DSH `0.2.1-rc.1` / `0.2.1-rc.2` and pi-ai `1.1.0`.
+  upstream DSH `0.2.1-rc.1` through `0.2.1-rc.5` and pi-ai `1.1.0`.
 - Adds a global **Service tier** dropdown in **LLM Settings**, using the
   `serviceTier` field in the `llm-codex-auth` Config Form: `inherit` (No override,
   the default), `default` (Standard), or `fast` (sends `service_tier: "priority"`
@@ -295,7 +295,7 @@ keeps the valid Portable Checkpoint. Stock conversation views intentionally show
 the Portable text even when the next compatible provider request replays Native.
 
 This experimental export supports homogeneous DSH / Basic compaction graphs at
-`0.2.1-rc.1`, with pi-ai `1.1.0`; a mixed or unverified pair fails with an
+`0.2.1-rc.1` through `0.2.1-rc.5`, with pi-ai `1.1.0`; a mixed or unverified pair fails with an
 actionable compatibility error. Long Context Mode may change when pressure
 compaction runs, but does not change native activation, codec, retention, v2
 payload, replay compatibility, or the one-shot turn-continuation contract.
@@ -351,7 +351,7 @@ malformed, oversized (over 2 MiB), secret-bearing, mixed, or incompatible state
 degrades to Portable text. Generated markers are Host-only and any missing,
 duplicate, embedded, leaked, or unconsumed marker fails before network I/O. The
 replay converter accepts matching DSH LLM / pi-ai Adapter versions at
-`0.2.1-rc.1`, with pi-ai `1.1.0`; mixed or unverified runtime pairs use Portable text instead. Adapter generation
+`0.2.1-rc.1` through `0.2.1-rc.5`, with pi-ai `1.1.0`; mixed or unverified runtime pairs use Portable text instead. Adapter generation
 replacement or HMR invalidates process-local replay and turn-continuation state,
 while the durable Dual Checkpoint remains unchanged for a later request.
 

@@ -17,7 +17,7 @@ const EXPERIMENTAL_DSH_PEERS = [
 ]
 const PI_AI_VERSION = '1.1.0'
 // Independent expectations catch drift between the manifest, config, and emitted guards.
-const VERIFIED_DSH_RUNTIMES = ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3']
+const VERIFIED_DSH_RUNTIMES = ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5']
 const EXACT_SUPPORT_PACKAGES = {
   '@deepseek-ai/cordis': '4.0.5',
   '@deepseek-ai/schemastery': '3.18.5',
@@ -124,7 +124,7 @@ try {
     for (const version of VERIFIED_DSH_RUNTIMES) {
       assert(semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
     }
-    for (const version of ['0.2.1-rc.3.1', '0.2.1-rc.4', '0.2.1']) {
+    for (const version of ['0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1']) {
       assert(!semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
     }
     for (const section of ['peerDependencies', 'devDependencies']) {

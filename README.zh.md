@@ -1,6 +1,6 @@
 # dsh-codex-auth
 
-> **DSH 兼容性：** Unreleased 工作区新增 DSH `0.2.1-rc.3` 完整依赖图支持，同时保留 rc.1/rc.2 及 pi-ai `1.1.0`。实验性 peer 有限范围为 `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3`，继续拒绝混合依赖图、未来 rc 和稳定版，不添加版本豁免。已发布的 `0.3.4-rc.2` 仍仅支持 rc.1/rc.2。见[验证说明](docs/dsh-source-verification.md)。
+> **DSH 兼容性：** Unreleased 工作区支持 DSH `0.2.1-rc.1` 至 `0.2.1-rc.5` 完整同版本依赖图及 pi-ai `1.1.0`。实验性 peer 有限范围为 `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5`，继续拒绝混合依赖图、未来 rc 和稳定版，不添加版本豁免。已发布的 `0.3.4-rc.2` 仍仅支持 rc.1/rc.2。见[验证说明](docs/dsh-source-verification.md)。
 
 [![npm rc version](https://img.shields.io/npm/v/dsh-codex-auth/rc.svg?label=npm%20rc)](https://www.npmjs.com/package/dsh-codex-auth)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -24,9 +24,9 @@
 > `chatgpt.com/backend-api` 未获官方支持、可随时撤销，也可能在没有通知的情况下被限流
 > 或变更。请勿依赖它承载生产任务。
 
-## Unreleased：DSH 0.2.1-rc.3
+## Unreleased：DSH 0.2.1-rc.4 / rc.5
 
-插件加载、实验性压缩和 Native 回放新增 rc.3 支持，无需版本豁免。开发依赖保持 rc.1，rc.2/rc.3 使用隔离官方源码验证。保留 V4 会话、checkpoint codec v1、既有设置和登录态格式。三个依赖图均通过 502 项离线测试及完整打包检查，详见[验证记录](docs/dsh-source-verification.md#rc3-verification-record)。
+插件加载、实验性压缩和 Native 回放新增 rc.4/rc.5 支持，无需版本豁免，保留 rc.1–rc.3 支持。开发依赖保持 rc.1，隔离官方源码验证默认使用 rc.5。保留 V4 会话、checkpoint codec v1、既有设置和登录态格式。已完成的检查及限制见[验证记录](docs/dsh-source-verification.md#rc4--rc5-verification-record)。
 
 ## 0.3.4-rc.2：DSH 0.2.1-rc.1 / rc.2
 
@@ -96,7 +96,7 @@
   即使旧总开关曾经开启也不会自动延续；请到 GPT Auth 设置中重新启用所需模型。
   DSH 0.2 改用 `llm-codex-auth` Config Form，旧 `codex-llm` namespace 中的逐模型设置
   也不会自动迁移；升级后请检查并重新启用所需开关。
-- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 工作区适配 DSH `0.2.1-rc.1` / `0.2.1-rc.2` / `0.2.1-rc.3`
+- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 工作区适配 DSH `0.2.1-rc.1` 至 `0.2.1-rc.5`
   和 pi-ai `1.1.0`。
 - 在「LLM 设置」中增加全局「服务档位」下拉框，使用 `llm-codex-auth` Config Form
   的 `serviceTier` 字段：`inherit`（不覆盖，默认）、`default`（标准）、`fast`
@@ -243,7 +243,7 @@ Codex 请求会增加 Native 同级表示，任何不兼容或 Native 失败都�
 Checkpoint。即使下一次兼容 provider 请求实际回放 Native，stock conversation 视图仍会
 刻意显示 Portable 文本。
 
-该实验性导出支持完整一致的 DSH / Basic compaction `0.2.1-rc.1` 图，要求 pi-ai `1.1.0`；
+该实验性导出支持完整一致的 DSH / Basic compaction `0.2.1-rc.1` 至 `0.2.1-rc.5` 图，要求 pi-ai `1.1.0`；
 在其他版本组合上挂载会给出可操作的兼容性错误并失败。长上下文模式可以改变 pressure
 压缩的触发时机，但不会改变 Native activation、codec、retention、v2 payload、回放兼容性
 或一次性 turn-continuation 契约。回滚时只需重新选择 DSH 内置 preset；已有会话仍可通过
@@ -287,7 +287,7 @@ Portable 文本。组合的 payload callback 可以改变已有建模控制项�
 Request ID、prompt-cache key、临时 header、turn state 与 Long Context Mode 不参与兼容性。
 未知、损坏、超过 2 MiB、含 secret、混合格式或不兼容的状态会退化为 Portable 文本。生成的
 marker 只存在于 Host；marker 缺失、重复、嵌入、泄漏或未消费时会在网络请求之前失败。
-回放 converter 要求 DSH LLM / pi-ai Adapter 同为 `0.2.1-rc.1`，且 pi-ai 为 `1.1.0`；混合或其他
+回放 converter 要求 DSH LLM / pi-ai Adapter 同为 rc.1–rc.5 中的一个版本，且 pi-ai 为 `1.1.0`；混合或其他
 runtime 组合只使用 Portable 文本。Adapter generation 替换或 HMR 会使进程内 replay 与
 turn-continuation 状态失效，但不会修改持久化 Dual Checkpoint。
 

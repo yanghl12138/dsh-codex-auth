@@ -165,7 +165,7 @@ describe('Codex Native Checkpoint codec', () => {
 
   it('pins replay to the observed DSH and pi-ai conversion pair', () => {
     expect(CODEX_NATIVE_REPLAY_COMPATIBILITY).toEqual({
-      dsh: '0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3',
+      dsh: '0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5',
       piAi: '1.1.0',
     })
     expect(isCodexNativeReplayRuntimeCompatible()).toBe(true)
@@ -186,7 +186,7 @@ describe('Codex Native Checkpoint codec', () => {
     }
   })
 
-  it.each(['0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3.1', '0.2.1-rc.4', '0.2.1'])('rejects the unverified %s converter and mixed RC graph', version => {
+  it.each(['0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1'])('rejects the unverified %s converter and mixed RC graph', version => {
     expect(isCodexNativeReplayRuntimeCompatible({
       dshLlm: version, dshPiAi: version, piAi: '1.1.0',
     })).toBe(false)
@@ -661,14 +661,9 @@ async function collect(stream: AsyncIterable<unknown>): Promise<unknown[]> {
 }
 
 describe('Codex Native Checkpoint replay', () => {
-  it.each([
-    ['0.2.1-rc.1', '0.2.1-rc.2'],
-    ['0.2.1-rc.1', '0.2.1-rc.3'],
-    ['0.2.1-rc.2', '0.2.1-rc.1'],
-    ['0.2.1-rc.2', '0.2.1-rc.3'],
-    ['0.2.1-rc.3', '0.2.1-rc.1'],
-    ['0.2.1-rc.3', '0.2.1-rc.2'],
-  ])('sends only Portable text for the mixed LLM %s / pi-ai adapter %s graph', async (dshLlm, dshPiAi) => {
+  it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'].flatMap(llm =>
+    ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'].filter(adapter => adapter !== llm).map(adapter => [llm, adapter]),
+  ))('sends only Portable text for the mixed LLM %s / pi-ai adapter %s graph', async (dshLlm, dshPiAi) => {
     const payloads: unknown[] = []
     const { ctx } = mountCodexAdapter(payloads)
     const installedVersion = packageVersions.installedPackageVersion
@@ -1720,9 +1715,9 @@ describe('Codex Native Checkpoint replay', () => {
 })
 
 
-it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3'])('keeps Native replay available on coherent %s and falls back on mixed RCs', version => {
+it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'])('keeps Native replay available on coherent %s and falls back on mixed RCs', version => {
   expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: version, piAi: '1.1.0' })).toBe(true)
-  for (const other of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3'].filter(candidate => candidate !== version)) {
+  for (const other of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'].filter(candidate => candidate !== version)) {
     expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: other, piAi: '1.1.0' })).toBe(false)
     expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: other, dshPiAi: version, piAi: '1.1.0' })).toBe(false)
   }

@@ -656,7 +656,7 @@ describe('Codex Portable Checkpoint Adapter', () => {
 
   it('fails loud when any experimental DSH or pi-ai runtime package leaves the pinned pair', () => {
     expect(CODEX_COMPACTION_COMPATIBILITY).toEqual({
-      dsh: '0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3',
+      dsh: '0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5',
       piAi: '1.1.0',
     })
     const pinnedDsh = {
@@ -668,7 +668,7 @@ describe('Codex Portable Checkpoint Adapter', () => {
       '@deepseek-ai/dsh-session': '0.2.1-rc.1',
       '@deepseek-ai/dsh-token-meter': '0.2.1-rc.1',
     }
-    for (const version of ['0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3.1', '0.2.1-rc.4', '0.2.1']) {
+    for (const version of ['0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1']) {
       const unverified = Object.fromEntries(Object.keys(pinnedDsh).map(name => [name, version])) as typeof pinnedDsh
       expect(() => assertCodexCompactionCompatibility({ dsh: unverified, piAi: '1.1.0' })).toThrow()
       for (const name of Object.keys(pinnedDsh)) {
@@ -696,7 +696,7 @@ describe('Codex Portable Checkpoint Adapter', () => {
 })
 
 
-it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3'])('accepts coherent %s compaction and rejects mixing the supported RCs', version => {
+it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'])('accepts coherent %s compaction and rejects mixing the supported RCs', version => {
   const dsh = {
     '@deepseek-ai/dsh-agent': version,
     '@deepseek-ai/dsh-compaction': version,
@@ -707,7 +707,7 @@ it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3'])('accepts coherent %s compact
     '@deepseek-ai/dsh-token-meter': version,
   }
   expect(() => assertCodexCompactionCompatibility({ dsh, piAi: '1.1.0' })).not.toThrow()
-  for (const other of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3'].filter(candidate => candidate !== version)) {
+  for (const other of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'].filter(candidate => candidate !== version)) {
     for (const name of Object.keys(dsh)) {
       expect(() => assertCodexCompactionCompatibility({ dsh: { ...dsh, [name]: other }, piAi: '1.1.0' })).toThrow()
     }
