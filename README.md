@@ -135,10 +135,11 @@ DSH already compacted.
 
 ### Codex models and long context
 
-The pinned pi-ai `1.1.0` catalog includes GPT-6 Astra. The plugin fills missing
-GPT-6 Sol (`gpt-6-sol`), Luna (`gpt-6-luna`), and GPT-6.1 Sol (`gpt-6.1-sol`)
-entries from matching GPT-5.6 templates and preserves installed descriptors.
-Fallback descriptors use a 272,000-token context window. This fork's default-off
+The pinned pi-ai `1.1.0` catalog includes GPT-6 Astra, Sol (`gpt-6-sol`),
+Luna (`gpt-6-luna`), and GPT-6.1 Sol (`gpt-6.1-sol`). The plugin uses those
+descriptors directly, including pricing, reasoning mappings, and input limits.
+The missing-model supplement mechanism remains available with an empty registry;
+the old GPT-5.6-based fallback entries have been removed. This fork's default-off
 **per-model long-context switches** report independent budgets: **872,000 tokens for
 GPT-6/6.1**, and 1,000,000 tokens for supported GPT-5.6 models. Existing model-ID
 switches and the global `serviceTier` preference are preserved when merging upstream;
@@ -148,11 +149,11 @@ DSH uses this for token pressure and compaction; it does not negotiate backend
 capacity or establish account entitlement. Enabling it cannot restore history
 already compacted, and long requests may consume account quota faster.
 
-Fallback descriptors offer `low`, `medium`, `high`, `xhigh`, and `max`;
-`minimal` maps to `low`, and `Off`/`Ultra` are unsupported. Installed Sol/Luna
-descriptors retain upstream Off support and send explicit `none`.
-GPT-6.1 Sol defaults to Codex's `low` when no effort is selected.
-All GPT-6/6.1 models reject explicit `temperature` (including `0`) before
+Reasoning capabilities follow the installed descriptors: GPT-6 Sol/Luna retain
+Off support and send explicit `none`; Astra and GPT-6.1 Sol require reasoning.
+`minimal` maps to `low`; Ultra is not sent as a raw wire effort.
+The route retains its GPT-6.1 Sol `low` default when no effort is selected.
+All supported GPT-6/6.1 models reject explicit `temperature` (including `0`) before
 credentials or transport. See [model-policy sources and verification limits](docs/codex-model-policy.md).
 
 Each profile can optionally hide exact model IDs with `excludedModelIds`

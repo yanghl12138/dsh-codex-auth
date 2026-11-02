@@ -4,7 +4,7 @@ import z from '@deepseek-ai/schemastery'
 
 /** Legacy namespace; DSH 0.2 uses the llm-codex-auth entry's Config Form. */
 export const CODEX_LLM_SETTINGS_NAMESPACE = 'codex-llm'
-/** Conservative Codex default that avoids automatic long-context usage. */
+/** Context baseline of the pinned pi-ai 1.1.0 long-context models. */
 export const CODEX_STANDARD_CONTEXT_WINDOW = 272_000
 /** Legacy opt-in budget for the supported GPT-5.6 family. */
 export const CODEX_LONG_CONTEXT_WINDOW = 1_000_000
@@ -29,74 +29,19 @@ export const CODEX_LONG_CONTEXT_MODEL_IDS = [
 
 const LONG_CONTEXT_MODEL_IDS = new Set<string>(CODEX_LONG_CONTEXT_MODEL_IDS)
 
-/**
- * GPT-6 pricing per million tokens. Above 272K input, input/cache rates
- * double and output rates increase by 50% for the entire request.
- */
-function gpt6Cost(input: number, output: number, cacheRead: number, cacheWrite: number): Model<Api>['cost'] {
-  return {
-    input,
-    output,
-    cacheRead,
-    cacheWrite,
-    tiers: [{
-      inputTokensAbove: CODEX_STANDARD_CONTEXT_WINDOW,
-      input: input * 2,
-      output: output * 1.5,
-      cacheRead: cacheRead * 2,
-      cacheWrite: cacheWrite * 2,
-    }],
-  }
+/** Explicit descriptor overrides for a model missing from the installed catalog. */
+export interface CodexModelSupplement {
+  readonly templateId: string
+  readonly overrides: Pick<Model<Api>, 'id' | 'name'> & Partial<Model<Api>>
 }
 
-const GPT_6_THINKING_LEVEL_MAP = {
-  off: null,
-  minimal: 'low',
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
-  xhigh: 'xhigh',
-  max: 'max',
-} as const satisfies NonNullable<Model<Api>['thinkingLevelMap']>
-
-const GPT_6_MODELS = [
-  {
-    id: CODEX_GPT_6_ASTRA_MODEL_ID,
-    templateId: 'gpt-5.6-sol',
-    name: 'GPT-6 Astra',
-    cost: gpt6Cost(10, 50, 1, 12.5),
-    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
-  },
-  {
-    id: CODEX_GPT_6_SOL_MODEL_ID,
-    templateId: 'gpt-5.6-sol',
-    name: 'GPT-6 Sol',
-    cost: gpt6Cost(2, 10, 0.2, 2.5),
-    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
-  },
-  {
-    id: CODEX_GPT_6_1_SOL_MODEL_ID,
-    templateId: 'gpt-5.6-sol',
-    name: 'GPT-6.1 Sol',
-    // Public API price estimate; not a ChatGPT subscription quota conversion.
-    cost: gpt6Cost(2, 10, 0.1, 2.5),
-    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
-  },
-  {
-    id: CODEX_GPT_6_LUNA_MODEL_ID,
-    templateId: 'gpt-5.6-luna',
-    name: 'GPT-6 Luna',
-    cost: gpt6Cost(0.1, 0.5, 0.01, 0.125),
-    thinkingLevelMap: GPT_6_THINKING_LEVEL_MAP,
-  },
-] as const
-
-const GPT_6_MODEL_IDS = new Set<string>(GPT_6_MODELS.map(model => model.id))
+/** pi-ai 1.1.0 supplies every currently supported model; reserve this for new gaps. */
+const CODEX_MODEL_SUPPLEMENTS: readonly CodexModelSupplement[] = []
 
 /** Codex catalog source and API estimate provenance: docs/codex-model-policy.md. */
 export function codexLongContextWindow(modelId: string): number | undefined {
   if (!LONG_CONTEXT_MODEL_IDS.has(modelId)) return undefined
-  return GPT_6_MODEL_IDS.has(modelId) ? CODEX_GPT_6_LONG_CONTEXT_WINDOW : CODEX_LONG_CONTEXT_WINDOW
+  return modelId.startsWith('gpt-5.6-') ? CODEX_LONG_CONTEXT_WINDOW : CODEX_GPT_6_LONG_CONTEXT_WINDOW
 }
 
 /** Request policy labels; Fast uses the compatible `priority` wire value. */
@@ -126,8 +71,8 @@ export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object({
 })
 
 /**
- * Keep the generated pi-ai catalog intact and overlay GPT-6 models only when
- * that installed catalog omits them. Enabling Long Context Mode then changes
+ * Keep the generated pi-ai catalog intact and apply explicit supplements only
+ * when that installed catalog omits them. Enabling Long Context Mode changes
  * only the individually enabled long-context models; every other descriptor
  * and every non-capacity field remains provider-owned. Exact ID exclusions
  * apply last, including to overlay models, without mutating source objects.
@@ -135,8 +80,9 @@ export const CodexLlmSettingsConfig: z<CodexLlmSettings> = z.object({
 export function applyCodexContextPolicy(
   models: readonly Model<Api>[],
   settings: CodexLlmSettings,
+  supplements: readonly CodexModelSupplement[] = CODEX_MODEL_SUPPLEMENTS,
 ): readonly Model<Api>[] {
-  const completeCatalog = ensureCodexCatalogModels(models)
+  const completeCatalog = ensureCodexCatalogModels(models, supplements)
   const catalog = !CODEX_LONG_CONTEXT_MODEL_IDS.some(id => settings[id]) ? completeCatalog : completeCatalog.map(model => {
     const contextWindow = codexLongContextWindow(model.id)
     return contextWindow !== undefined && settings[model.id as typeof CODEX_LONG_CONTEXT_MODEL_IDS[number]]
@@ -148,20 +94,18 @@ export function applyCodexContextPolicy(
   return catalog.filter(model => !excluded.has(model.id))
 }
 
-function ensureCodexCatalogModels(models: readonly Model<Api>[]): readonly Model<Api>[] {
-  const missing = GPT_6_MODELS.flatMap(descriptor => {
-    if (models.some(model => model.id === descriptor.id)) return []
+function ensureCodexCatalogModels(
+  models: readonly Model<Api>[],
+  supplements: readonly CodexModelSupplement[],
+): readonly Model<Api>[] {
+  if (supplements.length === 0) return models
+  const existingIds = new Set(models.map(model => model.id))
+  const missing = supplements.flatMap(descriptor => {
+    if (existingIds.has(descriptor.overrides.id)) return []
     const template = models.find(model => model.id === descriptor.templateId)
     if (template === undefined) return []
-    return [{
-      ...template,
-      id: descriptor.id,
-      name: descriptor.name,
-      contextWindow: CODEX_STANDARD_CONTEXT_WINDOW,
-      maxTokens: 128_000,
-      cost: descriptor.cost,
-      thinkingLevelMap: { ...descriptor.thinkingLevelMap },
-    }]
+    existingIds.add(descriptor.overrides.id)
+    return [{ ...template, ...descriptor.overrides }]
   })
   return missing.length === 0 ? models : [...missing, ...models]
 }

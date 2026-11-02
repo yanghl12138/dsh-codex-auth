@@ -4,6 +4,8 @@
 
 ### Fork feature updates
 
+- `refactor`: Use pi-ai `1.1.0` model descriptors directly and remove the redundant GPT-6 fallback pricing, reasoning maps, and template entries. Retain an empty missing-model supplement registry, per-model context switches, exclusions, and existing request policies.
+
 - `compat`: Add coherent DSH `0.2.1-rc.4` / `0.2.1-rc.5` admission, experimental compaction, and Native replay without exemptions; retain rc.1–rc.3, exact pi-ai `1.1.0`, and mixed-graph refusal. Default official-source verification to rc.5 while retaining the rc.1 development lockfile.
 
 - `compat`: Add coherent DSH `0.2.1-rc.3` admission, experimental compaction, and Native replay alongside rc.1/rc.2 without exemptions. Keep the rc.1 development graph and pi-ai `1.1.0`; expand rejection, Portable fallback, and packaged-artifact checks. Verification results are recorded in `docs/dsh-source-verification.md`.

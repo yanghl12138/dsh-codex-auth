@@ -5,29 +5,39 @@
 The route uses ChatGPT OAuth through the installed pi-ai Codex provider. Its
 capacity must not be inferred from a public API model's total-context number.
 
-- [Official Codex model catalog, pinned revision bcd6d9a](https://github.com/openai/codex/blob/bcd6d9ab6b9f26f85d76d0c680b3f88b367bffa0/codex-rs/models-manager/models.json):
-  GPT-6 Astra, Sol, Luna and GPT-6.1 Sol list a 272,000 default context and an
-  872,000 maximum. GPT-6.1 Sol's Codex default effort is low; Sol/Luna use medium.
-  All list low through max; none lists a non-reasoning effort.
-- [GPT-6.1 Sol public API metadata](https://developers.openai.com/api/docs/models/gpt-6.1-sol):
-  the fallback output limit is 128,000. Standard token-price estimates per
-  million are input $2, output $10, cache read $0.10 and cache write $2.50;
-  above 272K input, input/cache prices double and output increases by 50%.
-  These are accounting estimates, not subscription quota or OAuth billing guarantees.
-- [GPT-6 parameter guidance](https://developers.openai.com/api/docs/guides/latest-model#update-api-and-model-parameters):
-  temperature is unsupported with active reasoning. Public API none support
-  for Sol/Luna is not evidence of a working Codex OAuth Off option.
+- The installed pi-ai `1.1.0` `openai-codex` catalog supplies GPT-6 Astra,
+  Sol, Luna and GPT-6.1 Sol. Their descriptors own names, pricing tiers, output
+  limits, reasoning mappings, transport compatibility, and image input limits.
+  The plugin no longer duplicates those fields in legacy fallback entries.
+- [Pinned Codex context metadata, revision bcd6d9a](https://github.com/openai/codex/blob/bcd6d9ab6b9f26f85d76d0c680b3f88b367bffa0/codex-rs/models-manager/models.json)
+  is the source of the retained GPT-6/6.1 872,000-token opt-in budget. This is
+  an existing plugin policy, not a claim about current CLI defaults.
+- The route retains its explicit GPT-6.1 Sol `low` default and GPT-6 temperature
+  rejection. This cleanup does not change request policy or infer Codex OAuth
+  capabilities from public API metadata.
 
 ## Policy
 
-Missing GPT-6 descriptors use the matching GPT-5.6 transport template. The
-plugin changes explicit model fields only and keeps every existing provider
-descriptor. The fork retains seven independent model-ID boolean switches and
-its global serviceTier preference; the aggregate context switch is UI-only.
-The long-context opt-in changes only contextWindow: GPT-6/6.1 uses
-872K, while the pre-existing GPT-5.6 1M policy remains unchanged. Turning the
-setting off returns the original provider capacity; source objects are never
-mutated. The setting is a local compaction budget, not a backend entitlement.
+The installed provider catalog is authoritative. With default settings, the
+plugin returns its original model array and descriptors unchanged. The retired
+GPT-5.6-based fallback entries and their duplicate pricing/reasoning data have
+been removed; older catalogs are not repaired by those historical entries.
+
+The missing-model mechanism remains in `src/codex-context.ts` as the empty
+`CODEX_MODEL_SUPPLEMENTS` registry. A future explicit entry supplies a
+`templateId` and `overrides` containing at least an ID and name. Only missing
+IDs with an installed template are added, ahead of the original catalog.
+Installed descriptors win, duplicate entries are skipped, and absent templates
+produce no model. Other fields are inherited unless explicitly overridden;
+model-specific capacities, pricing and reasoning must be verified before
+registering a real supplement. No Terra entry is added by this cleanup.
+
+The fork retains seven independent model-ID boolean switches and its global
+serviceTier preference; the aggregate context switch is UI-only. The
+long-context opt-in changes only contextWindow: GPT-6/6.1 uses 872K, while the
+pre-existing GPT-5.6 1M policy remains unchanged. Turning the setting off returns
+the original provider capacity; source objects are never mutated. The setting
+is a local compaction budget, not a backend entitlement.
 
 The optional per-profile `excludedModelIds` string array defaults to empty.
 Exact, case-sensitive ID filtering runs last, after descriptor completion and
@@ -45,28 +55,31 @@ visibility again on dispatch; already running requests are not cancelled.
 Visibility filtering is not a request
 permission check and does not alter authentication, Search or Image settings.
 
-Fallback reasoning maps explicitly mark Off unsupported with null. DSH minimal
-is a compatibility alias for low. Omitting an effort is not equivalent to none;
-the adapter explicitly supplies low for an unspecified GPT-6.1 Sol request.
-Explicit efforts remain unchanged. Ultra is a Codex orchestration mode and is
-not sent as a raw wire effort. Installed provider descriptors retain their own
-reasoning metadata. The pinned pi-ai 1.1.0 catalog supplies GPT-6 Sol/Luna
-with `off: "none"`; those installed descriptors therefore advertise Off and
-send explicit none. Only missing-model fallback descriptors reject Off. Temperature is rejected for the known GPT-6/6.1 models
-before authentication, regardless of direct or prepared call entry point.
+Installed provider descriptors own reasoning capabilities. The pinned pi-ai
+1.1.0 catalog marks Off unsupported for Astra and GPT-6.1 Sol, while GPT-6
+Sol/Luna use `off: "none"` and therefore advertise Off and send explicit none.
+DSH minimal is a compatibility alias for low. The adapter retains low for an
+unspecified GPT-6.1 Sol request; explicit efforts remain unchanged. Ultra is a
+Codex orchestration mode and is not sent as a raw wire effort. Temperature is
+rejected for the known GPT-6/6.1 models before authentication, regardless of
+direct or prepared call entry point.
 
 ## Verification boundary
 
-Tests cover missing and installed descriptors, immutable defaults and toggling,
-model-specific budgets, UI wording, direct/prepared calls, exact request efforts,
-unsupported fallback Off/Ultra, provider-owned Off, and temperature, and successful scripted SSE decoding
-through the installed DSH/pi-ai provider. They use synthetic credentials and
-an offline transport, not a live account. This does not prove backend model
-availability, actual long-context acceptance, subscription quota, or live OAuth
-behavior. No release or package publication is part of this change.
+Tests cover the actual pi-ai 1.1.0 catalog remaining unchanged, removal of
+legacy automatic fallbacks, synthetic explicit supplements, provider precedence,
+deduplication, missing templates, and supplement/context/exclusion ordering.
+Request tests use the real installed catalog, covering direct/prepared calls,
+exact efforts, provider-owned Off support, unsupported Off/Ultra, temperature,
+and successful scripted SSE text and function-call decoding. Existing tests
+retain model-specific budgets, immutable defaults, toggling and UI wording.
+These use synthetic credentials and an offline transport, not a live account.
+This does not prove backend model availability, actual long-context acceptance,
+subscription quota, or live OAuth behavior. No release or package publication
+is part of this change.
 
 Exclusion regressions cover empty/omitted settings, exact matching, unknown and
-duplicate IDs, completed descriptors, long-context compatibility, source
+duplicate IDs, supplemented descriptors, long-context compatibility, source
 immutability, empty catalogs and missing-model failures before credentials or
 transport. Two synthetic profiles exercise the real Settings Forms, Config
 Editor and Loader path: edits remain isolated, persist, restore on restart and

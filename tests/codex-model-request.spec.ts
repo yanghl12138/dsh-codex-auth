@@ -17,20 +17,7 @@ import {
 } from '../src/codex-context.ts'
 import type { CodexLlmSettings } from '../src/codex-context.ts'
 
-const NEW_MODELS = [CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_LUNA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID] as const
-
-const fallbackCatalog = vi.hoisted(() => ({ enabled: false }))
-vi.mock('@earendil-works/pi-ai/providers/all', async importOriginal => {
-  const actual = await importOriginal<typeof import('@earendil-works/pi-ai/providers/all')>()
-  return {
-    ...actual,
-    builtinProviders: () => actual.builtinProviders().map(provider =>
-      provider.id !== 'openai-codex' || !fallbackCatalog.enabled ? provider : {
-        ...provider,
-        getModels: () => provider.getModels().filter(model => !NEW_MODELS.some(id => id === model.id)),
-      }),
-  }
-})
+const GPT_6_MODELS = [CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_LUNA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID] as const
 
 let context: Context | undefined
 
@@ -38,11 +25,9 @@ afterEach(async () => {
   await context?.fiber.dispose()
   context = undefined
   vi.unstubAllGlobals()
-  fallbackCatalog.enabled = false
 })
 
-function fixture(fallback = false, response?: () => Response, policy: Partial<CodexAuthAdapterOptions> = {}) {
-  fallbackCatalog.enabled = fallback
+function fixture(response?: () => Response, policy: Partial<CodexAuthAdapterOptions> = {}) {
   context = new Context()
   const accountId = 'synthetic-model-policy-account'
   const token = ['header', Buffer.from(JSON.stringify({
@@ -121,7 +106,7 @@ describe('Codex model request policy', () => {
 
   it('uses host missing-model handling when a prepared call dispatches after exclusion', async () => {
     const settings: CodexLlmSettings = { ...createDefaultCodexLlmSettings(), excludedModelIds: [] }
-    const { adapter, credential, fetchMock } = fixture(false, undefined, { settings: () => settings })
+    const { adapter, credential, fetchMock } = fixture(undefined, { settings: () => settings })
     const selected = request()
     const prepared = await adapter.prepareCall(selected.provider, selected.model)
     settings.excludedModelIds = [selected.model]
@@ -134,7 +119,7 @@ describe('Codex model request policy', () => {
 
   it('uses the host missing-model error for excluded selections and empty catalogs before auth or transport', async () => {
     const settings: CodexLlmSettings = { ...createDefaultCodexLlmSettings(), excludedModelIds: [] }
-    const { adapter, credential, fetchMock } = fixture(true, undefined, { settings: () => settings })
+    const { adapter, credential, fetchMock } = fixture(undefined, { settings: () => settings })
     const all = await adapter.listModels('openai-codex')
     const selected = request()
     settings.excludedModelIds = [selected.model, CODEX_GPT_6_1_SOL_MODEL_ID]
@@ -159,7 +144,7 @@ describe('Codex model request policy', () => {
     it.each([
       ['inherit', undefined], ['default', 'default'], ['fast', 'priority'],
     ] as const)('sends the selected %s service tier', async (serviceTier, wireTier) => {
-      const { adapter, payloads } = fixture(false, undefined, {
+      const { adapter, payloads } = fixture(undefined, {
         settings: () => ({ ...createDefaultCodexLlmSettings(), serviceTier }),
       })
       const options = request()
@@ -174,7 +159,7 @@ describe('Codex model request policy', () => {
       let settings: ReturnType<typeof createDefaultCodexLlmSettings> = {
         ...createDefaultCodexLlmSettings(), serviceTier: 'fast',
       }
-      const { adapter, payloads } = fixture(false, undefined, {
+      const { adapter, payloads } = fixture(undefined, {
         settings: () => settings,
         onPayload: async payload => {
           await Promise.resolve()
@@ -190,7 +175,7 @@ describe('Codex model request policy', () => {
     })
 
     it('does not silently retry a rejected Fast request as Standard', async () => {
-      const { adapter, payloads, fetchMock } = fixture(false,
+      const { adapter, payloads, fetchMock } = fixture(
         () => new Response('{"error":{"message":"service tier unsupported"}}', { status: 400 }), {
           settings: () => ({ ...createDefaultCodexLlmSettings(), serviceTier: 'fast' }),
         })
@@ -234,7 +219,7 @@ describe('Codex model request policy', () => {
       expect(payloads[0]).not.toHaveProperty('temperature')
     })
 
-    it.each(NEW_MODELS)('decodes a successful offline SSE response for %s', async model => {
+    it.each(GPT_6_MODELS)('decodes a successful offline SSE response for %s', async model => {
       const { adapter, payloads } = fixture()
       const options = request({ model })
       const call = mode === 'prepared'
@@ -253,7 +238,7 @@ describe('Codex model request policy', () => {
       expect(payloads[0]).not.toHaveProperty('temperature')
     })
 
-    it.each(NEW_MODELS.flatMap(model => [0, 0.7].map(temperature => ({ model, temperature }))))(
+    it.each(GPT_6_MODELS.flatMap(model => [0, 0.7].map(temperature => ({ model, temperature }))))(
       'rejects $model temperature $temperature before resolving credentials', async ({ model, temperature }) => {
         const { adapter, credential, fetchMock } = fixture()
         const options = request({ model, temperature, reasoningEffort: ReasoningEffortId('off') })
@@ -280,7 +265,7 @@ describe('Codex model request policy', () => {
           input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
       } },
     ]
-    const { adapter, payloads } = fixture(false, () => new Response(
+    const { adapter, payloads } = fixture(() => new Response(
       events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''),
       { headers: { 'content-type': 'text/event-stream' } },
     ))
@@ -320,9 +305,9 @@ describe('Codex model request policy', () => {
   )
 
   describe.each(['direct', 'prepared'] as const)('%s GPT-6 reasoning', mode => {
-    it.each(NEW_MODELS.flatMap(model => ['off', 'ultra'].map(level => ({ model, level }))))(
-      'rejects fallback $model $level before credentials or transport', async ({ model, level }) => {
-        const { adapter, credential, fetchMock } = fixture(true)
+    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID].flatMap(model => ['off', 'ultra'].map(level => ({ model, level }))))(
+      'rejects upstream-unsupported $model $level before credentials or transport', async ({ model, level }) => {
+        const { adapter, credential, fetchMock } = fixture()
         const options = request({ model, reasoningEffort: ReasoningEffortId(level) })
         const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, options.model) : adapter
         await expect(drain(call.stream(options))).rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_EFFORT' })
@@ -331,8 +316,8 @@ describe('Codex model request policy', () => {
       },
     )
 
-    it.each(NEW_MODELS)('does not advertise fallback Off or Ultra for %s', async model => {
-      const { adapter } = fixture(true)
+    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID])('preserves upstream required reasoning for %s', async model => {
+      const { adapter } = fixture()
       const info = mode === 'prepared'
         ? (await adapter.prepareCall('openai-codex', model)).model
         : await adapter.resolveModel('openai-codex', model)
@@ -364,7 +349,7 @@ describe('Codex model request policy', () => {
       expect(options).not.toHaveProperty('reasoningEffort')
     })
 
-    it.each(NEW_MODELS.flatMap(model =>
+    it.each(GPT_6_MODELS.flatMap(model =>
       (['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)
         .map(level => ({ model, level })),
     ))('maps $model $level to the supported Codex wire effort', async ({ model, level }) => {

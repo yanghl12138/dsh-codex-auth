@@ -1,19 +1,17 @@
 /** Catalog overlay and Long Context Mode policy for the openai-codex route. */
 import type { Api, Model } from '@earendil-works/pi-ai'
-import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
+import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
 import { describe, expect, it } from 'vitest'
 import {
   applyCodexContextPolicy,
-  CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_GPT_6_LONG_CONTEXT_WINDOW,
-  CODEX_GPT_6_LUNA_MODEL_ID,
-  CODEX_GPT_6_SOL_MODEL_ID,
   CODEX_LONG_CONTEXT_MODEL_IDS,
   CODEX_LONG_CONTEXT_WINDOW,
   CODEX_STANDARD_CONTEXT_WINDOW,
   createDefaultCodexLlmSettings,
 } from '../src/codex-context.ts'
+import type { CodexModelSupplement } from '../src/codex-context.ts'
 
 function fakeModel(id: string, extra: Partial<Model<Api>> = {}): Model<Api> {
   return {
@@ -62,125 +60,75 @@ describe('applyCodexContextPolicy', () => {
     expect(models).toEqual(before)
   })
 
-  it.each([false, true])('filters after overlay and context policy with long context %s', longContextEnabled => {
-    const models = Object.freeze([Object.freeze(fakeModel('gpt-5.6-sol')), Object.freeze(fakeModel('gpt-5.6-luna'))])
+  it('uses every pi-ai 1.1.0 descriptor unchanged by default', () => {
+    const provider = builtinProviders().find(provider => provider.id === 'openai-codex')
+    if (provider === undefined) throw new Error('missing Codex provider')
+    const models = Object.freeze(provider.getModels().map(model => Object.freeze(structuredClone(model))))
+    expect(models.map(model => model.id)).toEqual(expect.arrayContaining([...CODEX_LONG_CONTEXT_MODEL_IDS]))
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
+  })
+
+  it('does not recreate retired GPT-6 fallbacks from legacy templates', () => {
+    const models = Object.freeze([fakeModel('gpt-5.6-sol'), fakeModel('gpt-5.6-luna')])
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
+  })
+
+  it('supplements an explicitly registered model without changing its template', () => {
+    const template = Object.freeze(fakeModel('fixture-template', { contextWindow: 300_000, maxTokens: 64_000 }))
+    const models = Object.freeze([template])
+    const overrides = Object.freeze({
+      id: 'fixture-new-model', name: 'New model', contextWindow: 400_000,
+      cost: { input: 7, output: 8, cacheRead: 1, cacheWrite: 2 },
+      thinkingLevelMap: { off: null, low: 'low' },
+    })
+    const supplements = Object.freeze([{ templateId: template.id, overrides }])
+    const before = structuredClone({ models, supplements })
+    const catalog = applyCodexContextPolicy(models, createDefaultCodexLlmSettings(), supplements)
+    expect(catalog).toEqual([{ ...template, ...overrides }, template])
+    expect(catalog[0]?.maxTokens).toBe(64_000)
+    expect(catalog[0]?.compat).toBe(template.compat)
+    expect(catalog[1]).toBe(template)
+    expect({ models, supplements }).toEqual(before)
+  })
+
+  it('preserves installed models, skips absent templates and deduplicates supplements', () => {
+    const installed = Object.freeze(fakeModel('fixture-installed', { name: 'Provider-owned model' }))
+    const template = Object.freeze(fakeModel('fixture-template'))
+    const models = Object.freeze([installed, template])
+    const supplements: readonly CodexModelSupplement[] = [
+      { templateId: template.id, overrides: { id: installed.id, name: 'Ignored replacement' } },
+      { templateId: 'absent', overrides: { id: 'fixture-new-model', name: 'No template' } },
+      { templateId: template.id, overrides: { id: 'fixture-new-model', name: 'New model' } },
+      { templateId: template.id, overrides: { id: 'fixture-new-model', name: 'Ignored duplicate' } },
+    ]
+    const catalog = applyCodexContextPolicy(models, createDefaultCodexLlmSettings(), supplements)
+    expect(catalog.map(model => model.id)).toEqual(['fixture-new-model', installed.id, template.id])
+    expect(catalog[0]?.name).toBe('New model')
+    expect(catalog[1]).toBe(installed)
+    expect(catalog[2]).toBe(template)
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings(), supplements.slice(0, 2))).toBe(models)
+  })
+
+  it.each([false, true])('filters after supplements and context policy with long context %s', longContextEnabled => {
+    const models = Object.freeze([Object.freeze(fakeModel('fixture-template'))])
     const before = structuredClone(models)
-    const settings = { ...createDefaultCodexLlmSettings(), 'gpt-6-sol': longContextEnabled, serviceTier: 'fast' as const }
-    const complete = applyCodexContextPolicy(models, settings)
-    const excludedModelIds = ['gpt-5.6-sol', CODEX_GPT_6_1_SOL_MODEL_ID]
-    const catalog = applyCodexContextPolicy(models, { ...settings, excludedModelIds })
-    expect(catalog).toEqual(complete.filter(model => !excludedModelIds.includes(model.id)))
-    expect(catalog.some(model => model.id === CODEX_GPT_6_SOL_MODEL_ID)).toBe(true)
-    expect(catalog.find(model => model.id === CODEX_GPT_6_SOL_MODEL_ID)?.contextWindow).toBe(
+    const supplements = [{ templateId: 'fixture-template', overrides: {
+      id: CODEX_GPT_6_1_SOL_MODEL_ID, name: 'Supplement fixture',
+    } }]
+    const settings = { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': longContextEnabled, serviceTier: 'fast' as const }
+    const complete = applyCodexContextPolicy(models, settings, supplements)
+    expect(complete[0]?.contextWindow).toBe(
       longContextEnabled ? CODEX_GPT_6_LONG_CONTEXT_WINDOW : CODEX_STANDARD_CONTEXT_WINDOW,
     )
+    const catalog = applyCodexContextPolicy(models, {
+      ...settings, excludedModelIds: [CODEX_GPT_6_1_SOL_MODEL_ID],
+    }, supplements)
+    expect(catalog).toEqual(models)
+    expect(catalog[0]).toBe(models[0])
     expect(models).toEqual(before)
-    expect(applyCodexContextPolicy(models, { ...settings, excludedModelIds: complete.map(model => model.id) })).toEqual([])
-    expect(applyCodexContextPolicy(models, { ...settings, excludedModelIds: [] })).toEqual(complete)
-  })
-
-  it('overlays missing GPT-6 models from matching GPT-5.6 templates', () => {
-    const sol = fakeModel('gpt-5.6-sol', { name: 'GPT-5.6 Sol' })
-    const luna = fakeModel('gpt-5.6-luna', { name: 'GPT-5.6 Luna' })
-    const terra = fakeModel('gpt-5.6-terra')
-    const catalog = applyCodexContextPolicy([sol, luna, terra], createDefaultCodexLlmSettings())
-    expect(catalog.map(model => model.id)).toEqual([
-      CODEX_GPT_6_ASTRA_MODEL_ID,
-      CODEX_GPT_6_SOL_MODEL_ID,
-      CODEX_GPT_6_1_SOL_MODEL_ID,
-      CODEX_GPT_6_LUNA_MODEL_ID,
-      'gpt-5.6-sol',
-      'gpt-5.6-luna',
-      'gpt-5.6-terra',
-    ])
-    const astra = catalog[0]
-    expect(astra).toMatchObject({
-      id: CODEX_GPT_6_ASTRA_MODEL_ID,
-      name: 'GPT-6 Astra',
-      api: sol.api,
-      provider: sol.provider,
-      baseUrl: sol.baseUrl,
-      contextWindow: CODEX_STANDARD_CONTEXT_WINDOW,
-      compat: sol.compat,
-      cost: {
-        input: 10,
-        output: 50,
-        cacheRead: 1,
-        cacheWrite: 12.5,
-      },
-    })
-    expect(astra?.thinkingLevelMap).toMatchObject({
-      off: null,
-      minimal: 'low',
-      low: 'low',
-      max: 'max',
-    })
-    for (const [id, template, cost] of [
-      [CODEX_GPT_6_SOL_MODEL_ID, sol, { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5,
-        tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.4, cacheWrite: 5 }] }],
-      [CODEX_GPT_6_LUNA_MODEL_ID, luna, { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125,
-        tiers: [{ inputTokensAbove: 272_000, input: 0.2, output: 0.75, cacheRead: 0.02, cacheWrite: 0.25 }] }],
-      [CODEX_GPT_6_1_SOL_MODEL_ID, sol, { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5,
-        tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5 }] }],
-    ] as const) {
-      const model = catalog.find(item => item.id === id)
-      expect(model).toMatchObject({
-        id,
-        api: template.api,
-        provider: template.provider,
-        baseUrl: template.baseUrl,
-        input: ['text', 'image'],
-        contextWindow: CODEX_STANDARD_CONTEXT_WINDOW,
-        maxTokens: 128_000,
-        compat: template.compat,
-        cost,
-        thinkingLevelMap: { off: null, minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
-      })
-    }
-  })
-
-  it('overlays GPT-6.1 Sol with its own pricing and required reasoning', () => {
-    const template = fakeModel('gpt-5.6-sol')
-    const catalog = applyCodexContextPolicy([template], createDefaultCodexLlmSettings())
-    const model = catalog.find(item => item.id === CODEX_GPT_6_1_SOL_MODEL_ID)
-    expect(model).toMatchObject({
-      id: CODEX_GPT_6_1_SOL_MODEL_ID,
-      name: 'GPT-6.1 Sol',
-      api: template.api,
-      provider: template.provider,
-      baseUrl: template.baseUrl,
-      input: template.input,
-      compat: template.compat,
-      contextWindow: CODEX_STANDARD_CONTEXT_WINDOW,
-      maxTokens: 128_000,
-      cost: {
-        input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5,
-        tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5 }],
-      },
-      thinkingLevelMap: { off: null, minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
-    })
-    if (model === undefined) throw new Error('missing GPT-6.1 Sol')
-    expect(getSupportedThinkingLevels(model)).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
-    expect(template.cost.cacheRead).toBe(0)
-  })
-
-  it('preserves installed GPT-6 rows while filling only missing siblings', () => {
-    const astra = fakeModel(CODEX_GPT_6_ASTRA_MODEL_ID, { name: 'Installed Astra' })
-    const luna = fakeModel(CODEX_GPT_6_LUNA_MODEL_ID, { name: 'Installed Luna' })
-    const models = [astra, luna, fakeModel('gpt-5.6-sol'), fakeModel('gpt-5.6-luna')]
-    const catalog = applyCodexContextPolicy(models, createDefaultCodexLlmSettings())
-    expect(catalog.find(model => model.id === CODEX_GPT_6_ASTRA_MODEL_ID)).toBe(astra)
-    expect(catalog.find(model => model.id === CODEX_GPT_6_LUNA_MODEL_ID)).toBe(luna)
-    expect(catalog.filter(model => model.id === CODEX_GPT_6_SOL_MODEL_ID)).toHaveLength(1)
-    const allInstalled = [astra, luna, fakeModel(CODEX_GPT_6_SOL_MODEL_ID), fakeModel(CODEX_GPT_6_1_SOL_MODEL_ID)]
-    expect(applyCodexContextPolicy(allInstalled, createDefaultCodexLlmSettings())).toBe(allInstalled)
-  })
-
-  it('preserves an installed GPT-6.1 Sol descriptor without duplicating it', () => {
-    const installed = fakeModel(CODEX_GPT_6_1_SOL_MODEL_ID, { name: 'Installed Sol', contextWindow: 1_050_000 })
-    const catalog = applyCodexContextPolicy([installed, fakeModel('gpt-5.6-sol')], createDefaultCodexLlmSettings())
-    expect(catalog.filter(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toEqual([installed])
-    expect(catalog.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(installed)
+    expect(applyCodexContextPolicy(models, {
+      ...settings, excludedModelIds: complete.map(model => model.id),
+    }, supplements)).toEqual([])
   })
 
   it('preserves every installed descriptor field except opt-in capacity and does not mutate inputs', () => {
@@ -198,14 +146,9 @@ describe('applyCodexContextPolicy', () => {
     expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())[0]).toBe(installed)
   })
 
-  it('does not invent GPT-6 Astra without a GPT-5.6 Sol template', () => {
-    const models = [fakeModel('gpt-5.4'), fakeModel('gpt-5.6-terra')]
-    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
-  })
-
   it('applies each long-context budget independently to the known family', () => {
     const gpt54 = fakeModel('gpt-5.4')
-    const models = [fakeModel('gpt-5.6-luna'), fakeModel('gpt-5.6-sol'), fakeModel('gpt-5.6-terra'), gpt54]
+    const models = [...CODEX_LONG_CONTEXT_MODEL_IDS.map(id => fakeModel(id)), gpt54]
     const settings = { ...createDefaultCodexLlmSettings(), 'gpt-5.6-sol': true }
     const catalog = applyCodexContextPolicy(models, settings)
     expect(catalog.find(model => model.id === 'gpt-5.6-sol')?.contextWindow).toBe(CODEX_LONG_CONTEXT_WINDOW)
@@ -215,14 +158,14 @@ describe('applyCodexContextPolicy', () => {
     expect(catalog.find(model => model.id === 'gpt-5.4')).toBe(gpt54)
   })
 
-  it('enables GPT-6.1 Sol context independently without mutating its template', () => {
-    const template = fakeModel('gpt-5.6-sol')
-    const models = [template]
+  it('enables GPT-6.1 Sol context independently without mutating provider descriptors', () => {
+    const models = CODEX_LONG_CONTEXT_MODEL_IDS.map(id => fakeModel(id))
+    const before = structuredClone(models)
     const catalog = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true })
     expect(catalog.find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow).toBe(CODEX_GPT_6_LONG_CONTEXT_WINDOW)
-    for (const id of ['gpt-5.6-sol', CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_ASTRA_MODEL_ID]) {
+    for (const id of CODEX_LONG_CONTEXT_MODEL_IDS.filter(id => id !== CODEX_GPT_6_1_SOL_MODEL_ID)) {
       expect(catalog.find(model => model.id === id)?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
     }
-    expect(catalog.find(model => model.id === template.id)).toBe(template)
+    expect(models).toEqual(before)
   })
 })

@@ -118,20 +118,20 @@ DSH 已经压缩的历史。
 
 ### Codex 模型与长上下文
 
-本仓库锁定的 pi-ai `1.1.0` 目录已包含 GPT-6 Astra。插件会在缺项时以对应的
-GPT-5.6 描述符为模板，补入 GPT-6 Sol（`gpt-6-sol`）、Luna（`gpt-6-luna`）和
-GPT-6.1 Sol（`gpt-6.1-sol`）；已由上游提供的描述符保持不变。
-回退描述符默认使用 272,000 Token 上下文。本 Fork 默认关闭的**逐模型长上下文**开关独立设置预算：
+本仓库锁定的 pi-ai `1.1.0` 目录已包含 GPT-6 Astra、Sol（`gpt-6-sol`）、
+Luna（`gpt-6-luna`）和 GPT-6.1 Sol（`gpt-6.1-sol`）。插件直接使用上游描述符，
+包括价格、推理映射和输入限制。缺失模型补齐机制保留，扩展表默认为空；
+原有基于 GPT-5.6 模板的回退条目已移除。本 Fork 默认关闭的**逐模型长上下文**开关独立设置预算：
 **GPT-6/6.1 为 872,000 Token**，支持的 GPT-5.6 模型保持原有 1,000,000 Token 策略。
 合并上游时保留已有模型 ID 开关和全局 `serviceTier` 偏好，不重新引入上游的 `longContextEnabled` 字段。
 GPT-6 的预算以 Codex OAuth 元数据为依据，不套用公开 API 的上下文上限。
 DSH 据此计算 Token 压力和压缩时机；这不会协商后端容量或赋予账户使用权限，
 也无法恢复已经压缩的历史。长请求可能更快消耗账户配额。
 
-回退描述符提供 `low`、`medium`、`high`、`xhigh`、`max`；`minimal` 映射到 `low`，
-不支持 `Off`/`Ultra`。已安装的 Sol/Luna 描述符保留上游 Off 支持，显式发送 `none`。
-GPT-6.1 Sol 未选择推理档位时使用 Codex 的 `low` 默认值。
-所有 GPT-6/6.1 模型都在解析凭据或发送请求前拒绝显式 `temperature`（包括 `0`）。
+推理能力遵循已安装的描述符：GPT-6 Sol/Luna 保留上游 Off 支持，显式发送 `none`；
+Astra 和 GPT-6.1 Sol 必须启用推理。`minimal` 映射到 `low`，Ultra 不作为原始推理档位发送。
+路由保留 GPT-6.1 Sol 未选择推理档位时使用 `low` 的行为。
+当前已支持的 GPT-6/6.1 模型都在解析凭据或发送请求前拒绝显式 `temperature`（包括 `0`）。
 详见[模型策略依据与验证边界](docs/codex-model-policy.md)。
 
 每个 profile 可通过可选的 `excludedModelIds`（默认 `[]`）隐藏精确模型 ID。

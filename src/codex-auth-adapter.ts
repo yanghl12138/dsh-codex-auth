@@ -406,7 +406,7 @@ export class CodexAuthAdapter extends PiAiAdapter {
   }
 }
 
-/** The Codex CLI defaults GPT-6.1 Sol to low, unlike the public API default. */
+/** Preserve this route's GPT-6.1 Sol low default when the caller omits an effort. */
 function withCodexModelDefaults(options: GenerateOptions): GenerateOptions {
   return options.model === CODEX_GPT_6_1_SOL_MODEL_ID && options.reasoningEffort === undefined
     ? { ...options, reasoningEffort: ReasoningEffortId('low') }
