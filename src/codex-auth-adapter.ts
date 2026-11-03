@@ -47,6 +47,7 @@ import {
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
+  CODEX_GPT_6_1_TERRA_MODEL_ID,
 } from './codex-context.ts'
 import type { CodexLlmSettings, CodexServiceTier } from './codex-context.ts'
 import { CodexNativeCheckpointReplay } from './native-checkpoint-replay.ts'
@@ -406,9 +407,10 @@ export class CodexAuthAdapter extends PiAiAdapter {
   }
 }
 
-/** Preserve this route's GPT-6.1 Sol low default when the caller omits an effort. */
+/** Preserve this route's GPT-6.1 Sol/Terra low default when the caller omits an effort. */
 function withCodexModelDefaults(options: GenerateOptions): GenerateOptions {
-  return options.model === CODEX_GPT_6_1_SOL_MODEL_ID && options.reasoningEffort === undefined
+  return (options.model === CODEX_GPT_6_1_SOL_MODEL_ID || options.model === CODEX_GPT_6_1_TERRA_MODEL_ID)
+    && options.reasoningEffort === undefined
     ? { ...options, reasoningEffort: ReasoningEffortId('low') }
     : options
 }
@@ -425,10 +427,10 @@ async function* validateCodexStream(
     )
   }
   if ((options.model === CODEX_GPT_6_SOL_MODEL_ID || options.model === CODEX_GPT_6_LUNA_MODEL_ID
-    || options.model === CODEX_GPT_6_1_SOL_MODEL_ID)
+    || options.model === CODEX_GPT_6_1_SOL_MODEL_ID || options.model === CODEX_GPT_6_1_TERRA_MODEL_ID)
     && options.temperature !== undefined) {
     throw new LlmError(
-      'GPT-6 Sol, Luna, and GPT-6.1 Sol do not support temperature on this Codex route; remove temperature from the model request',
+      'GPT-6 Sol, Luna, and GPT-6.1 Sol/Terra do not support temperature on this Codex route; remove temperature from the model request',
       'UNSUPPORTED_OPTION',
     )
   }

@@ -23,7 +23,7 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 100
 export type CodexSearchMode = 'live' | 'cached' | 'indexed'
 export type CodexSearchContextSize = 'low' | 'medium' | 'high'
 /** Codex ChatGPT-sign-in replacement for retired `gpt-5.4`. */
-export const DEFAULT_CODEX_SEARCH_FALLBACK_MODEL = 'gpt-5.6-terra'
+export const DEFAULT_CODEX_SEARCH_FALLBACK_MODEL = 'gpt-6.1-terra'
 
 /** Independently live settings for the Global Codex Search Provider. */
 export interface CodexSearchSettings {

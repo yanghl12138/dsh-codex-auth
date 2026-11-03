@@ -20,6 +20,7 @@ export interface LlmSettingsView {
   'gpt-6-astra': boolean
   'gpt-6-sol': boolean
   'gpt-6.1-sol': boolean
+  'gpt-6.1-terra': boolean
   'gpt-6-luna': boolean
   excludedModelIds?: string[]
 }
@@ -31,6 +32,7 @@ const LONG_CONTEXT_FIELDS = [
   ['gpt-6-astra', 'contextGpt6Astra'],
   ['gpt-6-sol', 'contextGpt6Sol'],
   ['gpt-6.1-sol', 'contextGpt61Sol'],
+  ['gpt-6.1-terra', 'contextGpt61Terra'],
   ['gpt-6-luna', 'contextGpt6Luna'],
 ] as const satisfies ReadonlyArray<readonly [keyof LlmSettingsView, CodexAuthKey]>
 

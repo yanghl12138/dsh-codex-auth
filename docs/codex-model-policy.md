@@ -19,24 +19,40 @@ capacity must not be inferred from a public API model's total-context number.
 ## Policy
 
 The installed provider catalog is authoritative. With default settings, the
-plugin returns its original model array and descriptors unchanged. The retired
+plugin preserves installed descriptors and adds Terra only when absent. The retired
 GPT-5.6-based fallback entries and their duplicate pricing/reasoning data have
 been removed; older catalogs are not repaired by those historical entries.
 
-The missing-model mechanism remains in `src/codex-context.ts` as the empty
-`CODEX_MODEL_SUPPLEMENTS` registry. A future explicit entry supplies a
+The missing-model mechanism remains in `src/codex-context.ts` as the explicit
+`CODEX_MODEL_SUPPLEMENTS` registry. Each explicit entry supplies a
 `templateId` and `overrides` containing at least an ID and name. Only missing
 IDs with an installed template are added, ahead of the original catalog.
 Installed descriptors win, duplicate entries are skipped, and absent templates
 produce no model. Other fields are inherited unless explicitly overridden;
 model-specific capacities, pricing and reasoning must be verified before
-registering a real supplement. No Terra entry is added by this cleanup.
+registering a real supplement.
 
-The fork retains seven independent model-ID boolean switches and its global
+GPT-6.1 Terra is supplemented from GPT-6.1 Sol, retaining its Codex transport,
+tool compatibility and image input limits. Terra overrides ID, name, output
+limit (128,000), cost and reasoning mapping. The local Codex model cache inspected
+on 2026-11-03 reports default reasoning low, supported efforts low/medium/high/
+xhigh/max (plus orchestration-only ultra), context_window 500000 and
+max_context_window 872000. Only these capability facts are recorded here;
+the cache and its prompt content are not packaged or read at runtime.
+
+[Official Terra API metadata](https://developers.openai.com/api/docs/models/gpt-6.1-terra)
+supplies per-million-token cost estimates: input $1, output $5, cache read $0.05,
+and 30-minute cache write $1.25. Above 272K input tokens the whole request's
+input/cache rates double and output rate increases by 1.5x. These API estimates
+are not a claim about ChatGPT subscription billing. The public API's none effort
+and 1.05M context do not establish the Codex OAuth route's capabilities.
+
+The fork retains eight independent model-ID boolean switches and its global
 serviceTier preference; the aggregate context switch is UI-only. The
 long-context opt-in changes only contextWindow: GPT-6/6.1 uses 872K, while the
-pre-existing GPT-5.6 1M policy remains unchanged. Turning the setting off returns
-the original provider capacity; source objects are never mutated. The setting
+pre-existing GPT-5.6 1M policy remains unchanged. Terra starts at 500K when supplied by the plugin. Turning the setting off
+returns the original provider capacity (or the supplement baseline); source
+objects are never mutated. The setting
 is a local compaction budget, not a backend entitlement.
 
 The optional per-profile `excludedModelIds` string array defaults to empty.
@@ -59,19 +75,19 @@ Installed provider descriptors own reasoning capabilities. The pinned pi-ai
 1.1.0 catalog marks Off unsupported for Astra and GPT-6.1 Sol, while GPT-6
 Sol/Luna use `off: "none"` and therefore advertise Off and send explicit none.
 DSH minimal is a compatibility alias for low. The adapter retains low for an
-unspecified GPT-6.1 Sol request; explicit efforts remain unchanged. Ultra is a
+unspecified GPT-6.1 Sol or Terra request; explicit efforts remain unchanged. Ultra is a
 Codex orchestration mode and is not sent as a raw wire effort. Temperature is
 rejected for the known GPT-6/6.1 models before authentication, regardless of
 direct or prepared call entry point.
 
 ## Verification boundary
 
-Tests cover the actual pi-ai 1.1.0 catalog remaining unchanged, removal of
+Tests cover preserving the actual pi-ai 1.1.0 descriptors, adding Terra, removal of
 legacy automatic fallbacks, synthetic explicit supplements, provider precedence,
 deduplication, missing templates, and supplement/context/exclusion ordering.
 Request tests use the real installed catalog, covering direct/prepared calls,
 exact efforts, provider-owned Off support, unsupported Off/Ultra, temperature,
-and successful scripted SSE text and function-call decoding. Existing tests
+Terra default/long budgets, and successful scripted SSE text and function-call decoding. Existing tests
 retain model-specific budgets, immutable defaults, toggling and UI wording.
 These use synthetic credentials and an offline transport, not a live account.
 This does not prove backend model availability, actual long-context acceptance,
@@ -86,3 +102,8 @@ Editor and Loader path: edits remain isolated, persist, restore on restart and
 notify the live model catalog without remounting the plugin. Client tests cover
 save/clear, profile switching and write failure. Real user profiles and live
 requests are outside this verification boundary.
+
+Search defaults new or omitted fallback settings to gpt-6.1-terra. Explicitly saved
+fallbacks, including gpt-5.6-terra, remain unchanged. A known initiating Codex model
+continues to take precedence. Search sends its model ID directly and does not
+require the model to be visible in the inference catalog.

@@ -16,9 +16,10 @@ it('persists per-profile exclusions, updates the live catalog without remounting
   const all = await ctx.llm.listModels('openai-codex')
   expect(all.some(model => model.id === 'gpt-6-sol')).toBe(true)
   expect(all.some(model => model.id === 'gpt-6-luna')).toBe(true)
+  expect((await ctx.llm.resolveModelInfo('openai-codex', 'gpt-6.1-terra')).context?.contextWindow).toBe(500_000)
   const otherBefore = readFileSync(second.profile.patchPath, 'utf8')
   expect(ctx.settings.describe().find(row => row.ns === 'llm-codex-auth')?.value).toEqual(createDefaultCodexLlmSettings())
-  await ctx.settings.update('llm-codex-auth', { 'gpt-6.1-sol': true, serviceTier: 'fast' })
+  await ctx.settings.update('llm-codex-auth', { 'gpt-6.1-terra': true, serviceTier: 'fast' })
   const changed = vi.fn()
   ctx.on('llm/adapters-updated', changed)
   await ctx.settings.update('llm-codex-auth', { excludedModelIds: ['gpt-6-sol', 'unknown', 'gpt-6-sol'] })
@@ -32,9 +33,9 @@ it('persists per-profile exclusions, updates the live catalog without remounting
   expect(saved).toContain('gpt-6-sol')
   expect(saved).toContain('unknown')
   expect(ctx.settings.describe().find(row => row.ns === 'llm-codex-auth')?.value).toMatchObject({
-    'gpt-6.1-sol': true, serviceTier: 'fast', excludedModelIds: ['gpt-6-sol', 'unknown', 'gpt-6-sol'],
+    'gpt-6.1-terra': true, serviceTier: 'fast', excludedModelIds: ['gpt-6-sol', 'unknown', 'gpt-6-sol'],
   })
-  expect((await ctx.llm.resolveModelInfo('openai-codex', 'gpt-6.1-sol')).context?.contextWindow).toBe(872_000)
+  expect((await ctx.llm.resolveModelInfo('openai-codex', 'gpt-6.1-terra')).context?.contextWindow).toBe(872_000)
   expect(readFileSync(second.profile.patchPath, 'utf8')).toBe(otherBefore)
   expect(await other.llm.listModels('openai-codex')).toEqual(all)
   const beforeInvalid = saved
@@ -44,8 +45,9 @@ it('persists per-profile exclusions, updates the live catalog without remounting
   const restored = await first.start()
   expect(await restored.llm.listModels('openai-codex')).toEqual(all.filter(model => model.id !== 'gpt-6-sol'))
   expect(restored.settings.describe().find(row => row.ns === 'llm-codex-auth')?.value).toMatchObject({
-    'gpt-6.1-sol': true, serviceTier: 'fast', excludedModelIds: ['gpt-6-sol', 'unknown', 'gpt-6-sol'],
+    'gpt-6.1-terra': true, serviceTier: 'fast', excludedModelIds: ['gpt-6-sol', 'unknown', 'gpt-6-sol'],
   })
+  expect((await restored.llm.resolveModelInfo('openai-codex', 'gpt-6.1-terra')).context?.contextWindow).toBe(872_000)
   await restored.settings.update('llm-codex-auth', { excludedModelIds: all.map(model => model.id) })
   expect(await restored.llm.listModels('openai-codex')).toEqual([])
   expect(restored.agentDefaultModel.currentSelection().model).toBe('gpt-6-sol')

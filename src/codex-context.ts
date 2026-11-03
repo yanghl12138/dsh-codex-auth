@@ -14,6 +14,7 @@ export const CODEX_GPT_6_LONG_CONTEXT_WINDOW = 872_000
 export const CODEX_GPT_6_ASTRA_MODEL_ID = 'gpt-6-astra'
 export const CODEX_GPT_6_SOL_MODEL_ID = 'gpt-6-sol'
 export const CODEX_GPT_6_1_SOL_MODEL_ID = 'gpt-6.1-sol'
+export const CODEX_GPT_6_1_TERRA_MODEL_ID = 'gpt-6.1-terra'
 export const CODEX_GPT_6_LUNA_MODEL_ID = 'gpt-6-luna'
 
 /** Models with a model-specific opt-in long-context budget. */
@@ -24,6 +25,7 @@ export const CODEX_LONG_CONTEXT_MODEL_IDS = [
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
+  CODEX_GPT_6_1_TERRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
 ] as const
 
@@ -35,8 +37,30 @@ export interface CodexModelSupplement {
   readonly overrides: Pick<Model<Api>, 'id' | 'name'> & Partial<Model<Api>>
 }
 
-/** pi-ai 1.1.0 supplies every currently supported model; reserve this for new gaps. */
-const CODEX_MODEL_SUPPLEMENTS: readonly CodexModelSupplement[] = []
+/**
+ * Terra is absent from pi-ai 1.1.0. Transport/image compatibility follows Sol;
+ * Codex capacities/reasoning and API cost estimates: docs/codex-model-policy.md.
+ */
+const CODEX_MODEL_SUPPLEMENTS: readonly CodexModelSupplement[] = [{
+  templateId: CODEX_GPT_6_1_SOL_MODEL_ID,
+  overrides: {
+    id: CODEX_GPT_6_1_TERRA_MODEL_ID,
+    name: 'GPT-6.1 Terra',
+    contextWindow: 500_000,
+    maxTokens: 128_000,
+    thinkingLevelMap: {
+      off: null, minimal: 'low', low: 'low', medium: 'medium',
+      high: 'high', xhigh: 'xhigh', max: 'max',
+    },
+    cost: {
+      input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25,
+      tiers: [{
+        inputTokensAbove: 272_000,
+        input: 2, output: 7.5, cacheRead: 0.1, cacheWrite: 2.5,
+      }],
+    },
+  },
+}]
 
 /** Codex catalog source and API estimate provenance: docs/codex-model-policy.md. */
 export function codexLongContextWindow(modelId: string): number | undefined {

@@ -282,7 +282,7 @@ describe('Auth / LLM row configuration', () => {
     expect(parse({ 'gpt-6-sol': true })).toEqual({ ...createDefaultCodexLlmSettings(), 'gpt-6-sol': true })
   })
 
-  it('exposes seven independent volatile fields through the DSH Config Form', () => {
+  it('exposes eight independent volatile fields through the DSH Config Form', () => {
     const parse = PluginConfig as unknown as (input: Partial<PluginConfigView>) => PluginConfigView
     const defaults = parse({})
     const enabled = parse({ 'gpt-6.1-sol': true, 'gpt-5.6-sol': true })
@@ -294,14 +294,14 @@ describe('Auth / LLM row configuration', () => {
     expect(() => parse({ 'gpt-6.1-sol': 'true' } as unknown as Partial<PluginConfigView>)).toThrow()
   })
 
-  it('preserves saved six-model settings while defaulting only GPT-6.1 Sol off', () => {
+  it('preserves saved settings while defaulting missing GPT-6.1 switches off', () => {
     const parse = CodexLlmSettingsConfig as unknown as (input: Record<string, unknown>) => Record<string, boolean>
     const saved = {
       'gpt-5.6-luna': true, 'gpt-5.6-sol': false, 'gpt-5.6-terra': true,
       'gpt-6-astra': false, 'gpt-6-sol': true, 'gpt-6-luna': false,
     }
-    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false, serviceTier: 'inherit', excludedModelIds: [] })
-    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true, serviceTier: 'inherit', excludedModelIds: [] })
+    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false, 'gpt-6.1-terra': false, serviceTier: 'inherit', excludedModelIds: [] })
+    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true, 'gpt-6.1-terra': false, serviceTier: 'inherit', excludedModelIds: [] })
   })
 
   it('validates service tiers and defaults missing preferences without changing model switches', () => {
@@ -372,7 +372,7 @@ describe('CodexAuthAdapter route profile', () => {
     let serviceTier: 'inherit' | 'default' | 'fast' = 'inherit'
     const retire = vi.spyOn(CodexAuthAdapter.prototype, 'replaceRouteGeneration')
     config.serviceTier = { get: () => serviceTier } as PluginConfigView['serviceTier']
-    config['gpt-6.1-sol'] = { get: () => enabled } as PluginConfigView['gpt-6.1-sol']
+    config['gpt-6.1-terra'] = { get: () => enabled } as PluginConfigView['gpt-6.1-terra']
     const excludedModelIds: string[] = []
     config.excludedModelIds = { get: () => excludedModelIds } as NonNullable<PluginConfigView['excludedModelIds']>
     try {
@@ -380,8 +380,8 @@ describe('CodexAuthAdapter route profile', () => {
       const profile = piAiAdapterCalls.at(-1)?.profiles().get('openai-codex')
       const getModels = profile?.piProvider?.getModels
       if (getModels === undefined) throw new Error('missing codex model provider')
-      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
-        .toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+      expect(getModels().find(model => model.id === 'gpt-6.1-terra')?.contextWindow)
+        .toBe(500_000)
       for (const tier of ['fast', 'default', 'inherit'] as const) {
         serviceTier = tier
         ctx.emit('loader/volatile-update', [['serviceTier']])
@@ -389,27 +389,27 @@ describe('CodexAuthAdapter route profile', () => {
       expect(replace).not.toHaveBeenCalled()
       expect(retire).not.toHaveBeenCalled()
       enabled = true
-      ctx.emit('loader/volatile-update', [['gpt-6.1-sol']])
+      ctx.emit('loader/volatile-update', [['gpt-6.1-terra']])
       expect(replace).toHaveBeenCalledExactlyOnceWith(['openai-codex'])
-      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
+      expect(getModels().find(model => model.id === 'gpt-6.1-terra')?.contextWindow)
         .toBe(CODEX_GPT_6_LONG_CONTEXT_WINDOW)
       expect(getModels().find(model => model.id === 'gpt-6-sol')?.contextWindow)
         .toBe(CODEX_STANDARD_CONTEXT_WINDOW)
       serviceTier = 'fast'
       ctx.emit('loader/volatile-update', [['serviceTier']])
-      ctx.emit('loader/volatile-update', [['gpt-6.1-sol']])
+      ctx.emit('loader/volatile-update', [['gpt-6.1-terra']])
       expect(replace).toHaveBeenCalledTimes(1)
       expect(retire).toHaveBeenCalledTimes(1)
       enabled = false
-      ctx.emit('loader/volatile-update', [['gpt-6.1-sol']])
+      ctx.emit('loader/volatile-update', [['gpt-6.1-terra']])
       expect(replace).toHaveBeenCalledTimes(2)
       expect(retire).toHaveBeenCalledTimes(2)
-      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
-        .toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+      expect(getModels().find(model => model.id === 'gpt-6.1-terra')?.contextWindow)
+        .toBe(500_000)
       // Mutating the same list still changes the published catalog snapshot.
-      excludedModelIds.push(CODEX_GPT_6_1_SOL_MODEL_ID)
+      excludedModelIds.push('gpt-6.1-terra')
       ctx.emit('loader/volatile-update', [['excludedModelIds']])
-      expect(getModels().some(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(false)
+      expect(getModels().some(model => model.id === 'gpt-6.1-terra')).toBe(false)
       expect(replace).toHaveBeenCalledTimes(3)
       expect(retire).toHaveBeenCalledTimes(3)
       serviceTier = 'default'
@@ -419,8 +419,8 @@ describe('CodexAuthAdapter route profile', () => {
       expect(retire).toHaveBeenCalledTimes(3)
       excludedModelIds.length = 0
       enabled = true
-      ctx.emit('loader/volatile-update', [['excludedModelIds'], ['gpt-6.1-sol']])
-      expect(getModels().find(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)?.contextWindow)
+      ctx.emit('loader/volatile-update', [['excludedModelIds'], ['gpt-6.1-terra']])
+      expect(getModels().find(model => model.id === 'gpt-6.1-terra')?.contextWindow)
         .toBe(CODEX_GPT_6_LONG_CONTEXT_WINDOW)
       expect(replace).toHaveBeenCalledTimes(4)
       expect(retire).toHaveBeenCalledTimes(4)
@@ -510,7 +510,7 @@ describe('CodexAuthAdapter route profile', () => {
     expect(standard.some(model => model.id === CODEX_GPT_6_ASTRA_MODEL_ID)).toBe(true)
     expect(standard.some(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(true)
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
-      expect(standard.find(model => model.id === id)?.contextWindow).toBe(CODEX_STANDARD_CONTEXT_WINDOW)
+      expect(standard.find(model => model.id === id)?.contextWindow).toBe(id === 'gpt-6.1-terra' ? 500_000 : CODEX_STANDARD_CONTEXT_WINDOW)
     }
     const unchanged = standard.find(model => model.id === 'gpt-5.4')
 

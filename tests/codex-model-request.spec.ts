@@ -11,13 +11,14 @@ import type { CodexAuthAdapterOptions } from '../src/codex-auth-adapter.ts'
 import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
+  CODEX_GPT_6_1_TERRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
   createDefaultCodexLlmSettings,
 } from '../src/codex-context.ts'
 import type { CodexLlmSettings } from '../src/codex-context.ts'
 
-const GPT_6_MODELS = [CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_LUNA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID] as const
+const GPT_6_MODELS = [CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_LUNA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID] as const
 
 let context: Context | undefined
 
@@ -253,7 +254,7 @@ describe('Codex model request policy', () => {
     )
   })
 
-  it('streams a GPT-6.1 Sol function call using the existing Responses transport', async () => {
+  it.each([CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID])('streams a %s function call using the existing Responses transport', async model => {
     const item = { type: 'function_call', id: 'fc_fixture', call_id: 'call_fixture', name: 'fixture_tool', arguments: '{"value":1}' }
     const events = [
       { type: 'response.output_item.added', output_index: 0, item: { ...item, arguments: '' } },
@@ -271,14 +272,14 @@ describe('Codex model request policy', () => {
     ))
     const chunks = []
     for await (const chunk of adapter.stream(request({
-      model: CODEX_GPT_6_1_SOL_MODEL_ID,
+      model,
       reasoningEffort: ReasoningEffortId('low'),
       tools: [{ name: 'fixture_tool', description: 'Offline tool fixture', parameters: {
         type: 'object', properties: { value: { type: 'number' } }, required: ['value'],
       } }],
     }))) chunks.push(chunk)
     expect(payloads[0]).toMatchObject({
-      model: CODEX_GPT_6_1_SOL_MODEL_ID,
+      model,
       reasoning: { effort: 'low' },
       tools: [expect.objectContaining({ type: 'function', name: 'fixture_tool' })],
     })
@@ -305,7 +306,7 @@ describe('Codex model request policy', () => {
   )
 
   describe.each(['direct', 'prepared'] as const)('%s GPT-6 reasoning', mode => {
-    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID].flatMap(model => ['off', 'ultra'].map(level => ({ model, level }))))(
+    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID].flatMap(model => ['off', 'ultra'].map(level => ({ model, level }))))(
       'rejects upstream-unsupported $model $level before credentials or transport', async ({ model, level }) => {
         const { adapter, credential, fetchMock } = fixture()
         const options = request({ model, reasoningEffort: ReasoningEffortId(level) })
@@ -316,7 +317,7 @@ describe('Codex model request policy', () => {
       },
     )
 
-    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID])('preserves upstream required reasoning for %s', async model => {
+    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID])('preserves upstream required reasoning for %s', async model => {
       const { adapter } = fixture()
       const info = mode === 'prepared'
         ? (await adapter.prepareCall('openai-codex', model)).model
@@ -340,9 +341,9 @@ describe('Codex model request policy', () => {
       },
     )
 
-    it('defaults GPT-6.1 Sol to Codex low without mutating caller options', async () => {
+    it.each([CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID])('defaults %s to Codex low without mutating caller options', async model => {
       const { adapter, payloads } = fixture()
-      const options = Object.freeze(request({ model: CODEX_GPT_6_1_SOL_MODEL_ID }))
+      const options = Object.freeze(request({ model }))
       const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, options.model) : adapter
       await drain(call.stream(options))
       expect(payloads[0]).toMatchObject({ reasoning: { effort: 'low' } })

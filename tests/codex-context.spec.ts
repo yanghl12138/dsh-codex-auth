@@ -60,12 +60,29 @@ describe('applyCodexContextPolicy', () => {
     expect(models).toEqual(before)
   })
 
-  it('uses every pi-ai 1.1.0 descriptor unchanged by default', () => {
+  it('preserves pi-ai descriptors and supplements Terra by default', () => {
     const provider = builtinProviders().find(provider => provider.id === 'openai-codex')
     if (provider === undefined) throw new Error('missing Codex provider')
     const models = Object.freeze(provider.getModels().map(model => Object.freeze(structuredClone(model))))
-    expect(models.map(model => model.id)).toEqual(expect.arrayContaining([...CODEX_LONG_CONTEXT_MODEL_IDS]))
-    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
+    const catalog = applyCodexContextPolicy(models, createDefaultCodexLlmSettings())
+    expect(catalog.map(model => model.id)).toEqual(expect.arrayContaining([...CODEX_LONG_CONTEXT_MODEL_IDS]))
+    expect(catalog.slice(1)).toEqual(models)
+    models.forEach((model, index) => expect(catalog[index + 1]).toBe(model))
+    expect(catalog[0]).toMatchObject({
+      id: 'gpt-6.1-terra', contextWindow: 500_000, maxTokens: 128_000,
+      cost: { input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25,
+        tiers: [{ inputTokensAbove: 272_000, input: 2, output: 7.5, cacheRead: 0.1, cacheWrite: 2.5 }] },
+      thinkingLevelMap: { off: null, minimal: 'low', max: 'max' },
+    })
+    const long = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-terra': true })
+    expect(long[0]).toEqual({ ...catalog[0], contextWindow: 872_000 })
+    expect(long.slice(1)).toEqual(models)
+    const installed = Object.freeze({ ...catalog[0]!, contextWindow: 600_000 })
+    const complete = Object.freeze([installed, ...models])
+    expect(applyCodexContextPolicy(complete, createDefaultCodexLlmSettings())).toBe(complete)
+    expect(applyCodexContextPolicy(models, {
+      ...createDefaultCodexLlmSettings(), 'gpt-6.1-terra': true, excludedModelIds: ['gpt-6.1-terra'],
+    })).toEqual(models)
   })
 
   it('does not recreate retired GPT-6 fallbacks from legacy templates', () => {
@@ -139,11 +156,11 @@ describe('applyCodexContextPolicy', () => {
     })
     Object.freeze(installed)
     const models = Object.freeze([installed])
-    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())).toBe(models)
-    const [long] = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true })
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings(), [])).toBe(models)
+    const [long] = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true }, [])
     expect(long).toEqual({ ...installed, contextWindow: CODEX_GPT_6_LONG_CONTEXT_WINDOW })
     expect(installed.contextWindow).toBe(300_000)
-    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings())[0]).toBe(installed)
+    expect(applyCodexContextPolicy(models, createDefaultCodexLlmSettings(), [])[0]).toBe(installed)
   })
 
   it('applies each long-context budget independently to the known family', () => {

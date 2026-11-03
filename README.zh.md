@@ -87,10 +87,10 @@
 
 本 Fork 为 Codex 模型和请求控制增加了以下内容：
 
-- 当已安装的 pi-ai 目录缺少 GPT-6 Sol（`gpt-6-sol`）、GPT-6.1 Sol（`gpt-6.1-sol`）和 GPT-6 Luna
-  （`gpt-6-luna`）时，以对应 GPT-5.6 模型描述符为模板补入；若上游已有描述符则保留。
-- 为 GPT-5.6 Luna、Sol、Terra、GPT-6 Astra、Sol、Luna 以及 GPT-6.1 Sol 分别增加实时生效的
-  长上下文开关；汇总开关可以一键启用或关闭全部七项。DSH 会用报告的上下文窗口计算
+- 当已安装的 pi-ai 目录缺少 GPT-6.1 Terra（`gpt-6.1-terra`）时，使用 GPT-6.1 Sol
+  传输模板和 Terra 专属参数补齐，保留已有上游描述符。
+- 为 GPT-5.6 Luna、Sol、Terra、GPT-6 Astra、Sol、Luna 以及 GPT-6.1 Sol/Terra 分别增加实时生效的
+  长上下文开关；汇总开关可以一键启用或关闭全部八项。DSH 会用报告的上下文窗口计算
   Token 压力和压缩时机，插件不会在请求中发送用于和后端协商容量的参数。
 - **不迁移旧的全局 `codex-llm.longContextEnabled` 设置。**从旧全局设置升级后模型开关默认关闭，
   即使旧总开关曾经开启也不会自动延续；请到 GPT Auth 设置中重新启用所需模型。
@@ -120,7 +120,7 @@ DSH 已经压缩的历史。
 
 本仓库锁定的 pi-ai `1.1.0` 目录已包含 GPT-6 Astra、Sol（`gpt-6-sol`）、
 Luna（`gpt-6-luna`）和 GPT-6.1 Sol（`gpt-6.1-sol`）。插件直接使用上游描述符，
-包括价格、推理映射和输入限制。缺失模型补齐机制保留，扩展表默认为空；
+包括价格、推理映射和输入限制。缺失的 GPT-6.1 Terra 使用 Sol 传输模板补齐，显式设置价格与推理映射，默认预算为 500,000 Token；
 原有基于 GPT-5.6 模板的回退条目已移除。本 Fork 默认关闭的**逐模型长上下文**开关独立设置预算：
 **GPT-6/6.1 为 872,000 Token**，支持的 GPT-5.6 模型保持原有 1,000,000 Token 策略。
 合并上游时保留已有模型 ID 开关和全局 `serviceTier` 偏好，不重新引入上游的 `longContextEnabled` 字段。
@@ -129,8 +129,8 @@ DSH 据此计算 Token 压力和压缩时机；这不会协商后端容量或赋
 也无法恢复已经压缩的历史。长请求可能更快消耗账户配额。
 
 推理能力遵循已安装的描述符：GPT-6 Sol/Luna 保留上游 Off 支持，显式发送 `none`；
-Astra 和 GPT-6.1 Sol 必须启用推理。`minimal` 映射到 `low`，Ultra 不作为原始推理档位发送。
-路由保留 GPT-6.1 Sol 未选择推理档位时使用 `low` 的行为。
+Astra 和 GPT-6.1 Sol/Terra 必须启用推理。`minimal` 映射到 `low`，Ultra 不作为原始推理档位发送。
+路由保留 GPT-6.1 Sol/Terra 未选择推理档位时使用 `low` 的行为。
 当前已支持的 GPT-6/6.1 模型都在解析凭据或发送请求前拒绝显式 `temperature`（包括 `0`）。
 详见[模型策略依据与验证边界](docs/codex-model-policy.md)。
 
@@ -327,7 +327,7 @@ https://chatgpt.com/backend-api/codex/alpha/search
 | 启用 | `true` | 开 / 关 |
 | 模式 | `live` | `live`、`cached`、`indexed` |
 | 上下文大小 | `medium` | `low`、`medium`、`high` |
-| 备用模型 | `gpt-5.6-terra` | Codex 模型 ID |
+| 备用模型 | `gpt-6.1-terra` | Codex 模型 ID |
 | 最大输出 Token | `2048` | 正整数 |
 
 ### 图片创作
