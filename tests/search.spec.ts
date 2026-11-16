@@ -239,3 +239,27 @@ describe('Global Codex Search Provider', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+
+it('checks local search readiness without resolving credentials', async () => {
+  const credential = vi.fn()
+  let configured = false
+  const status = vi.fn(async () => ({ configured }))
+  const provider = new CodexSearchProvider({
+    auth: { credential, status: status as unknown as import('../src/codex-auth-service.ts').CodexAuthService['status'] },
+    settings: () => SETTINGS,
+    fetchImpl: vi.fn(),
+  })
+  expect(await provider.ready()).toBe(false)
+  configured = true
+  expect(await provider.ready()).toBe(true)
+  expect(credential).not.toHaveBeenCalled()
+})
+
+
+it('preserves readiness for custom credential resolvers without status facts', async () => {
+  const credential = vi.fn()
+  const provider = new CodexSearchProvider({ auth: { credential }, settings: () => SETTINGS, fetchImpl: vi.fn() })
+  expect(await provider.ready()).toBe(true)
+  expect(credential).not.toHaveBeenCalled()
+})

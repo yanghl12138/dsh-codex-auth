@@ -1,13 +1,13 @@
 # dsh-codex-auth
 
-> **DSH compatibility:** The Unreleased workspace supports coherent DSH `0.2.1-rc.1` through `0.2.1-rc.5` graphs, with pi-ai `1.1.0`. The finite experimental peer range is `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5`; mixed graphs, future RCs, and stable releases remain refused. Published `0.3.4-rc.2` supports rc.1/rc.2 only. See [verification](docs/dsh-source-verification.md).
+> **DSH compatibility:** Main targets coherent DSH `0.2.2-rc.1` / `0.2.2-rc.2` with pi-ai exactly `1.3.0`. Previous code is retained on branch `0.2.1`. See [verification](docs/dsh-source-verification.md).
 
 [![npm rc version](https://img.shields.io/npm/v/dsh-codex-auth/rc.svg?label=npm%20rc)](https://www.npmjs.com/package/dsh-codex-auth)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
 English | [中文](README.zh.md)
 
-Release: **v0.3.4-rc.2** (npm tag: `rc`).
+Latest published release: **v0.3.4-rc.2** (npm tag: `rc`, DSH 0.2.1). The DSH 0.2.2 adaptation on main is Unreleased.
 
 A self-contained [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 **Codex Capability Bundle**. It reuses the ChatGPT login maintained by the
@@ -26,9 +26,9 @@ official **Codex CLI** (`~/.codex/auth.json`, or `$CODEX_HOME/auth.json`) for:
 > may be rate-limited or changed without notice. Do not rely on it for
 > production workloads.
 
-## Unreleased: DSH 0.2.1-rc.4 / rc.5
+## Unreleased: DSH 0.2.2-rc.1 / rc.2
 
-Adds rc.4/rc.5 to plugin admission, experimental compaction, and Native replay without version exemptions, retaining rc.1–rc.3 support. Development dependencies remain on rc.1; the default isolated official-source target is rc.5. Session V4, checkpoint codec v1, saved settings, and Login State retain their formats. See the [verification record](docs/dsh-source-verification.md#rc4--rc5-verification-record) for completed checks and limitations.
+Main uses the rc.2 development graph, supports both verified 0.2.2 RCs with pi-ai 1.3.0, and captures Native checkpoints during model-switch compaction. Earlier runtime support lives on branch `0.2.1`. V4 sessions and checkpoint codec v1 retain their formats. See [verification](docs/dsh-source-verification.md).
 
 ## 0.3.4-rc.2: DSH 0.2.1-rc.1 / rc.2
 
@@ -107,11 +107,11 @@ This fork adds the following Codex model and request controls:
   namespace, so old per-model preferences are not automatically migrated either.
   Check and re-enable your preferred switches after upgrading.
 - Keeps the DSH `0.1.5`-compatible version on branch `1.5.x`; `main` now follows
-  upstream DSH `0.2.1-rc.1` through `0.2.1-rc.5` and pi-ai `1.1.0`.
+  upstream DSH `0.2.2-rc.1` through `0.2.2-rc.2` and pi-ai `1.3.0`.
 - Adds a global **Service tier** dropdown in **LLM Settings**, using the
   `serviceTier` field in the `llm-codex-auth` Config Form: `inherit` (No override,
   the default), `default` (Standard), or `fast` (sends `service_tier: "priority"`
-  for compatibility with pi-ai `1.1.0`). Missing settings default to `inherit`
+  for compatibility with pi-ai `1.3.0`). Missing settings default to `inherit`
   without changing model switches. Changes apply to new Codex LLM requests,
   including Native compaction; Search and Image Creation are unaffected.
   The aggregate context switch never changes the tier. Old `codex-llm` namespace
@@ -134,7 +134,7 @@ DSH already compacted.
 
 ### Codex models and long context
 
-The pinned pi-ai `1.1.0` catalog includes GPT-6 Astra, Sol (`gpt-6-sol`),
+The pinned pi-ai `1.3.0` catalog includes GPT-6 Astra, Sol (`gpt-6-sol`),
 Luna (`gpt-6-luna`), and GPT-6.1 Sol (`gpt-6.1-sol`). The plugin uses those
 descriptors directly, including pricing, reasoning mappings, and input limits.
 The plugin supplements missing GPT-6.1 Terra using GPT-6.1 Sol transport metadata,
@@ -296,7 +296,7 @@ keeps the valid Portable Checkpoint. Stock conversation views intentionally show
 the Portable text even when the next compatible provider request replays Native.
 
 This experimental export supports homogeneous DSH / Basic compaction graphs at
-`0.2.1-rc.1` through `0.2.1-rc.5`, with pi-ai `1.1.0`; a mixed or unverified pair fails with an
+`0.2.2-rc.1` through `0.2.2-rc.2`, with pi-ai `1.3.0`; a mixed or unverified pair fails with an
 actionable compatibility error. Long Context Mode may change when pressure
 compaction runs, but does not change native activation, codec, retention, v2
 payload, replay compatibility, or the one-shot turn-continuation contract.
@@ -342,7 +342,7 @@ failure.
 Native replay requires the checkpoint's schema/codec/retention generations,
 provider, exact model, hashed Codex account identity, instructions, tools,
 parallel/tool-choice controls, reasoning, text configuration, and service tier
-to match the **final effective** Responses request. Pi-ai `1.1.0` may encode
+to match the **final effective** Responses request. Pi-ai `1.3.0` may encode
 deferred tools as `additional_tools`, `tool_search_call`, or `tool_search_output` input items. Those items and in-history system/developer messages are outside this codec's compatibility digest, so such a payload
 conservatively uses Portable text for both replay and new Native creation. A
 composed payload callback may change the modeled controls: replay is re-evaluated
@@ -352,7 +352,7 @@ malformed, oversized (over 2 MiB), secret-bearing, mixed, or incompatible state
 degrades to Portable text. Generated markers are Host-only and any missing,
 duplicate, embedded, leaked, or unconsumed marker fails before network I/O. The
 replay converter accepts matching DSH LLM / pi-ai Adapter versions at
-`0.2.1-rc.1` through `0.2.1-rc.5`, with pi-ai `1.1.0`; mixed or unverified runtime pairs use Portable text instead. Adapter generation
+`0.2.2-rc.1` through `0.2.2-rc.2`, with pi-ai `1.3.0`; mixed or unverified runtime pairs use Portable text instead. Adapter generation
 replacement or HMR invalidates process-local replay and turn-continuation state,
 while the durable Dual Checkpoint remains unchanged for a later request.
 
@@ -499,7 +499,7 @@ assistant ImageBlock.
 
 ## Requirements
 
-- DeepSeek Harness `0.2.1-rc.1` (tested coherent dependency graph); do not mix it with an older rc package family.
+- DeepSeek Harness `0.2.2-rc.1` (tested coherent dependency graph); do not mix it with an older rc package family.
 - Node.js `^22.19.0` or `>=24.0.0`.
 - `pnpm` available on `PATH` (`11.7.0` is the tested project package manager).
 - The `codex` CLI available on `PATH`.
@@ -507,15 +507,22 @@ assistant ImageBlock.
 
 ## Install
 
-See the [upgrade evidence and test recipe](docs/dsh-source-verification.md#upgrade-from-dsh-020-rc2). Stop `dsh web`, ensure the target Host uses a coherent DSH `0.2.1-rc.1` graph, then install this exact prerelease into the intended profile:
+The main-branch DSH 0.2.2 adaptation is not published yet. Build a local artifact;
+the existing npm `0.3.4-rc.2` release retains its older DSH compatibility.
+See [verification](docs/dsh-source-verification.md). Stop `dsh web` and verify
+that the target Host uses a coherent rc.1 or rc.2 graph before installing:
 
 ```sh
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm pack --pack-destination artifacts
 dsh --version
-dsh plugin --profile web add dsh-codex-auth@0.3.4-rc.2
+dsh plugin --profile web add /absolute/path/to/artifacts/dsh-codex-auth-0.3.4-rc.2.tgz
 dsh plugin --profile web list
 ```
 
-Verify the entry, restart `dsh web`, and refresh the browser. This version uses the npm `rc` tag. An install without a version or tag selects `latest`, which does not include this DSH 0.2 adaptation. Older DSH Hosts should retain a compatible older plugin release.
+Restart `dsh web` and refresh the browser. Keep older DSH installations on a
+compatible released plugin or the `0.2.1` maintenance branch.
 
 ## Host configuration
 

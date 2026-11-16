@@ -7,7 +7,7 @@ import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import semver from 'semver'
-import { DSH_BASELINE, DSH_SOURCE_VERSION, DSH_VERIFY_VERSION, DSH_EXPERIMENTAL_PEER_RANGE, resolvedDshPackages } from './dsh-compatibility.mjs'
+import { DSH_SOURCE_VERSION, DSH_VERIFY_VERSION, DSH_EXPERIMENTAL_PEER_RANGE, resolvedDshPackages } from './dsh-compatibility.mjs'
 
 const CODEX_COMPACTION_DSH_RANGE = DSH_EXPERIMENTAL_PEER_RANGE
 const EXPERIMENTAL_DSH_PEERS = [
@@ -15,12 +15,12 @@ const EXPERIMENTAL_DSH_PEERS = [
   '@deepseek-ai/dsh-compaction-basic',
   '@deepseek-ai/dsh-token-meter',
 ]
-const PI_AI_VERSION = '1.1.0'
+const PI_AI_VERSION = '1.3.0'
 // Independent expectations catch drift between the manifest, config, and emitted guards.
-const VERIFIED_DSH_RUNTIMES = ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5']
+const VERIFIED_DSH_RUNTIMES = ['0.2.2-rc.1', '0.2.2-rc.2']
 const EXACT_SUPPORT_PACKAGES = {
-  '@deepseek-ai/cordis': '4.0.5',
-  '@deepseek-ai/schemastery': '3.18.5',
+  '@deepseek-ai/cordis': '4.1.0',
+  '@deepseek-ai/schemastery': '3.19.0',
 }
 const RETIRED_DSH_PACKAGES = [
   '@deepseek-ai/dsh-client-runtime',
@@ -101,7 +101,7 @@ try {
 
   for (const section of ['peerDependencies', 'devDependencies']) {
     const required = section === 'peerDependencies'
-      ? DSH_BASELINE
+      ? '0.2.2-rc.1'
       : DSH_VERIFY_VERSION
     const entries = Object.entries(manifest[section] ?? {})
       .filter(([name]) => name.startsWith('@deepseek-ai/dsh-')
@@ -124,7 +124,7 @@ try {
     for (const version of VERIFIED_DSH_RUNTIMES) {
       assert(semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
     }
-    for (const version of ['0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1']) {
+    for (const version of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5', '0.2.2-rc.3', '0.2.2', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1']) {
       assert(!semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
     }
     for (const section of ['peerDependencies', 'devDependencies']) {

@@ -510,7 +510,7 @@ describe('CodexAuthAdapter route profile', () => {
     expect(standard.some(model => model.id === CODEX_GPT_6_ASTRA_MODEL_ID)).toBe(true)
     expect(standard.some(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(true)
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
-      expect(standard.find(model => model.id === id)?.contextWindow).toBe(id === 'gpt-6.1-terra' ? 500_000 : CODEX_STANDARD_CONTEXT_WINDOW)
+      expect(standard.find(model => model.id === id)?.contextWindow).toBe(id.startsWith('gpt-6.1-') ? 500_000 : CODEX_STANDARD_CONTEXT_WINDOW)
     }
     const unchanged = standard.find(model => model.id === 'gpt-5.4')
 

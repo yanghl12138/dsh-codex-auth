@@ -5,7 +5,7 @@
 The route uses ChatGPT OAuth through the installed pi-ai Codex provider. Its
 capacity must not be inferred from a public API model's total-context number.
 
-- The installed pi-ai `1.1.0` `openai-codex` catalog supplies GPT-6 Astra,
+- The installed pi-ai `1.3.0` `openai-codex` catalog supplies GPT-6 Astra,
   Sol, Luna and GPT-6.1 Sol. Their descriptors own names, pricing tiers, output
   limits, reasoning mappings, transport compatibility, and image input limits.
   The plugin no longer duplicates those fields in legacy fallback entries.
@@ -18,7 +18,7 @@ capacity must not be inferred from a public API model's total-context number.
 
 ## Policy
 
-The installed provider catalog is authoritative. With default settings, the
+The installed provider catalog is authoritative. In pi-ai 1.3.0, GPT-6.1 Sol has a 500,000-token baseline; the older supported long-context model descriptors retain their catalog baselines. With default settings, the
 plugin preserves installed descriptors and adds Terra only when absent. The retired
 GPT-5.6-based fallback entries and their duplicate pricing/reasoning data have
 been removed; older catalogs are not repaired by those historical entries.

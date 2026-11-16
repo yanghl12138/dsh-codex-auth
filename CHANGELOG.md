@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `compat`: Main targets coherent DSH 0.2.2-rc.1 / rc.2 and exact pi-ai 1.3.0; retain previous code on branch `0.2.1`. Update image-count budgets, Native model-switch capture and isolated official-source verification. No version exemptions or checkpoint migration.
+
 ### Fork feature updates
 
 - `refactor`: Use pi-ai `1.1.0` model descriptors directly and remove the redundant GPT-6 fallback pricing, reasoning maps, and template entries. Retain an empty missing-model supplement registry, per-model context switches, exclusions, and existing request policies.

@@ -1,3 +1,4 @@
+import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native'
 /** Public ToolRuntime seam regressions for Codex Image Creation and Image Catalog. */
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -164,6 +165,7 @@ function bench(
     mountCustomCompaction(ctx)
   }
   const tools = new ToolRuntime(ctx)
+  tools.setExecutor(new NativeToolExecutor(ctx))
   for (const tool of createCodexImageTools(options)) tools.register(tool)
   return { attachments, ctx, fetchImpl, fs, options, refs, saved, tools }
 }
@@ -175,13 +177,14 @@ async function execute(
   agent = fakeAgent(),
   signal = new AbortController().signal,
 ) {
-  return tools.execute({
-    callId: ToolCallId(`call-${name}`),
-    name,
-    arguments: arguments_,
+  const batch = await tools.execute({
+    calls: [{ type: 'tool-call', id: ToolCallId(`call-${name}`), name, arguments: JSON.stringify(arguments_) }],
     agent,
     signal,
   })
+  const result = batch.results[0]?.result
+  if (result === undefined) throw new Error('Missing single-call result')
+  return result
 }
 
 describe('generate_image', () => {

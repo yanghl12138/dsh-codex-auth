@@ -165,45 +165,45 @@ describe('Codex Native Checkpoint codec', () => {
 
   it('pins replay to the observed DSH and pi-ai conversion pair', () => {
     expect(CODEX_NATIVE_REPLAY_COMPATIBILITY).toEqual({
-      dsh: '0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5',
-      piAi: '1.1.0',
+      dsh: '0.2.2-rc.1 || 0.2.2-rc.2',
+      piAi: '1.3.0',
     })
     expect(isCodexNativeReplayRuntimeCompatible()).toBe(true)
     expect(isCodexNativeReplayRuntimeCompatible({
-      dshLlm: '0.2.1-rc.1',
-      dshPiAi: '0.2.1-rc.1',
-      piAi: '1.1.0',
+      dshLlm: '0.2.2-rc.1',
+      dshPiAi: '0.2.2-rc.1',
+      piAi: '1.3.0',
     })).toBe(true)
     expect(isCodexNativeReplayRuntimeCompatible({
-      dshLlm: '0.2.1-rc.1',
+      dshLlm: '0.2.2-rc.1',
       dshPiAi: '0.1.2-alpha.6',
-      piAi: '1.1.0',
+      piAi: '1.3.0',
     })).toBe(false)
-    for (const piAi of ['0.84.2', '0.87.1', '1.1.1']) {
+    for (const piAi of ['0.84.2', '0.87.1', '1.1.0', '1.1.1', '1.3.1']) {
       expect(isCodexNativeReplayRuntimeCompatible({
-        dshLlm: '0.2.1-rc.1', dshPiAi: '0.2.1-rc.1', piAi,
+        dshLlm: '0.2.2-rc.1', dshPiAi: '0.2.2-rc.1', piAi,
       })).toBe(false)
     }
   })
 
-  it.each(['0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1'])('rejects the unverified %s converter and mixed RC graph', version => {
+  it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5', '0.2.2-rc.3', '0.2.2', '0.1.5-alpha.1', '0.1.5-rc.2', '0.2.0-rc.1', '0.2.0-rc.2', '0.2.0-rc.3', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1'])('rejects the unverified %s converter and mixed RC graph', version => {
     expect(isCodexNativeReplayRuntimeCompatible({
-      dshLlm: version, dshPiAi: version, piAi: '1.1.0',
+      dshLlm: version, dshPiAi: version, piAi: '1.3.0',
     })).toBe(false)
     expect(isCodexNativeReplayRuntimeCompatible({
-      dshLlm: version, dshPiAi: '0.2.1-rc.1', piAi: '1.1.0',
+      dshLlm: version, dshPiAi: '0.2.2-rc.1', piAi: '1.3.0',
     })).toBe(false)
     expect(isCodexNativeReplayRuntimeCompatible({
-      dshLlm: '0.2.1-rc.1', dshPiAi: version, piAi: '1.1.0',
+      dshLlm: '0.2.2-rc.1', dshPiAi: version, piAi: '1.3.0',
     })).toBe(false)
   })
 
   it('rejects the previous 0.1.3-alpha.1 converter graph', () => {
     expect(isCodexNativeReplayRuntimeCompatible({
-      dshLlm: '0.1.3-alpha.1', dshPiAi: '0.1.3-alpha.1', piAi: '1.1.0',
+      dshLlm: '0.1.3-alpha.1', dshPiAi: '0.1.3-alpha.1', piAi: '1.3.0',
     })).toBe(false)
     expect(isCodexNativeReplayRuntimeCompatible({
-      dshLlm: '0.1.3-alpha.1', dshPiAi: '0.2.1-rc.1', piAi: '1.1.0',
+      dshLlm: '0.1.3-alpha.1', dshPiAi: '0.2.2-rc.1', piAi: '1.3.0',
     })).toBe(false)
     expect(isCodexNativeReplayRuntimeCompatible({
       dshLlm: '0.1.3-alpha.1', dshPiAi: '0.1.3-alpha.1', piAi: '0.84.2',
@@ -552,6 +552,8 @@ function registerPiAiAdapter(ctx: Context): { readonly provider: string; readonl
     displayName: 'Foreign pi-ai fixture',
     streamIdleTimeoutMs: 5_000,
     maxRequestImageBytes: 20 * 1024 * 1024,
+    maxRequestImages: 50,
+    imageOffloadCountQuantum: 10,
     requestImagePixelBudget: 640_000,
     requestImageMaxBytes: 20 * 1024 * 1024,
     retryPolicy: resolveRetryPolicy(undefined, 'foreign pi-ai fixture'),
@@ -661,8 +663,8 @@ async function collect(stream: AsyncIterable<unknown>): Promise<unknown[]> {
 }
 
 describe('Codex Native Checkpoint replay', () => {
-  it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'].flatMap(llm =>
-    ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'].filter(adapter => adapter !== llm).map(adapter => [llm, adapter]),
+  it.each(['0.2.2-rc.1', '0.2.2-rc.2'].flatMap(llm =>
+    ['0.2.2-rc.1', '0.2.2-rc.2'].filter(adapter => adapter !== llm).map(adapter => [llm, adapter]),
   ))('sends only Portable text for the mixed LLM %s / pi-ai adapter %s graph', async (dshLlm, dshPiAi) => {
     const payloads: unknown[] = []
     const { ctx } = mountCodexAdapter(payloads)
@@ -737,7 +739,11 @@ describe('Codex Native Checkpoint replay', () => {
     }))
     const captured = payloads[0] as Record<string, JsonValue>
     expect(captured).toBeDefined()
-    for (const type of wireTypes) expect(JSON.stringify(captured.input)).toContain(`"type":"${type}"`)
+    if (captured.tools === undefined) {
+      for (const type of wireTypes) expect(JSON.stringify(captured.input)).toContain(`"type":"${type}"`)
+    }
+    expect(JSON.stringify([captured.tools, captured.input])).toContain(tool.name)
+    expect(JSON.stringify([captured.tools, captured.input])).toContain(tool.description)
     const checkpoint = {
       ...compatibleCheckpoint(),
       provenance: { ...compatibleCheckpoint().provenance, model },
@@ -756,7 +762,10 @@ describe('Codex Native Checkpoint replay', () => {
     await drain(ctx.llm.stream(options))
     expect(payloads).toHaveLength(2)
     const sent = payloads[1] as Record<string, JsonValue>
-    for (const type of wireTypes) expect(JSON.stringify(sent.input)).toContain(`"type":"${type}"`)
+    if (sent.tools === undefined) {
+      for (const type of wireTypes) expect(JSON.stringify(sent.input)).toContain(`"type":"${type}"`)
+    }
+    expect(JSON.stringify([sent.tools, sent.input])).toContain(tool.name)
     for (const key of ['model', 'instructions', 'tools', 'parallel_tool_calls', 'tool_choice', 'reasoning', 'text', 'service_tier']) {
       expect(sent[key]).toEqual(captured[key])
     }
@@ -804,7 +813,7 @@ describe('Codex Native Checkpoint replay', () => {
     expect(decodeCodexNativeCheckpoint(encodeCodexNativeCheckpoint(oldCheckpoint)).ok).toBe(true)
   })
 
-  it('keeps the pi-ai 1.1.0 final payload identical across SSE, WebSocket, and auto fallback', async () => {
+  it('keeps the pi-ai 1.3.0 final payload identical across SSE, WebSocket, and auto fallback', async () => {
     type FixtureMode = 'success' | 'fail-before-open'
     class FixtureWebSocket extends EventTarget {
       static mode: FixtureMode = 'success'
@@ -1715,11 +1724,11 @@ describe('Codex Native Checkpoint replay', () => {
 })
 
 
-it.each(['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'])('keeps Native replay available on coherent %s and falls back on mixed RCs', version => {
-  expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: version, piAi: '1.1.0' })).toBe(true)
-  for (const other of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5'].filter(candidate => candidate !== version)) {
-    expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: other, piAi: '1.1.0' })).toBe(false)
-    expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: other, dshPiAi: version, piAi: '1.1.0' })).toBe(false)
+it.each(['0.2.2-rc.1', '0.2.2-rc.2'])('keeps Native replay available on coherent %s and falls back on mixed RCs', version => {
+  expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: version, piAi: '1.3.0' })).toBe(true)
+  for (const other of ['0.2.2-rc.1', '0.2.2-rc.2'].filter(candidate => candidate !== version)) {
+    expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: other, piAi: '1.3.0' })).toBe(false)
+    expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: other, dshPiAi: version, piAi: '1.3.0' })).toBe(false)
   }
   expect(isCodexNativeReplayRuntimeCompatible({ dshLlm: version, dshPiAi: version, piAi: '1.1.1' })).toBe(false)
 })

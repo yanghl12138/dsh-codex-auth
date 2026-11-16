@@ -122,6 +122,11 @@ export class CodexNativeCheckpointReplay {
   }
 
   private prepare(options: GenerateOptions, generation: number): PreparedReplay {
+    const historyStart = options.messages.findIndex(message => message.role !== 'system')
+    const unmodeledHistory = (options.toolHistory?.updates.length ?? 0) > 0
+      || options.messages.slice(Math.max(0, historyStart)).some(
+        message => message.role === 'developer' || message.role === 'system',
+      )
     const entries = new Map<string, ReplayEntry>()
     const reservedText = options.messages.flatMap(message => message.content.flatMap(
       block => block.type === 'text' ? [block.text] : [],
@@ -137,7 +142,8 @@ export class CodexNativeCheckpointReplay {
       changed = true
       const portable = textOnlyMessage(message)
       runtimeCompatible ??= isCodexNativeReplayRuntimeCompatible()
-      if (generation !== this.generation
+      if (unmodeledHistory
+        || generation !== this.generation
         || !runtimeCompatible
         || !isCompleteBasicCheckpoint(message)
         || nativeBlocks.length !== 1) return portable
@@ -474,7 +480,7 @@ function compatibilityInput(
   accountHash: string,
   payload: Record<string, unknown>,
 ): CodexNativeCheckpointCompatibilityInput | undefined {
-  // pi-ai 1.1.0 can encode deferred tools and mid-conversation instructions in
+  // pi-ai 1.3.0 can encode deferred tools and mid-conversation instructions in
   // input history, outside the v1 digest's top-level tools/instructions. Keep
   // these requests Portable until a future codec models the ordered changes.
   if (containsUnmodeledHistory(payload.input)

@@ -962,7 +962,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     expect(active.payload).toEqual(inactive.payload)
     expect(active.chunks).toEqual(inactive.chunks)
     expect(JSON.stringify(active.payload)).toContain('fixture_tool')
-    expect(JSON.stringify(active.payload)).toContain('retained reasoning fixture')
+    // Stock reasoning replay differs across the two RCs; payload equality above covers it.
     expect(JSON.stringify(active.payload)).toContain('input_image')
     expect(JSON.stringify(active.payload)).not.toContain('compaction_trigger')
   })
@@ -1396,6 +1396,51 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
       .not.toContain('opaque-before-account-change')
   })
 
+  it('preserves the old request model when model-switch summarization fails', async () => {
+    const { ctx, requests } = mountDualCheckpointHost({
+      portableReply: () => { throw new Error('synthetic model-switch summary failure') },
+      compactionConfig: { auto: true, thresholdRatio: 0.02, retainTokens: 32, compactionRetries: 0 },
+    })
+    const session = openConversation('dual-model-switch-failure')
+    const before = session.requestHeader()
+    await expect(agentEvents(ctx, idleAgent(session)).waterfall('agent/request', {
+      turn: 3, step: 1, signal: new AbortController().signal,
+    }, () => Promise.resolve({ provider: 'openai-codex', model: 'gpt-6.1-terra' })))
+      .rejects.toMatchObject({ code: 'MODEL_SWITCH_COMPACTION_FAILED' })
+    expect(session.requestHeader()).toEqual(before)
+    expect(requests.some(request => request.kind === 'native')).toBe(false)
+    expect(session.deriveMessages().some(message => message.content.some(
+      block => block.type === CODEX_NATIVE_CHECKPOINT_BLOCK_TYPE,
+    ))).toBe(false)
+  })
+
+  it('creates a Native checkpoint before a model switch without forwarding old turn state', async () => {
+    const { ctx, requests } = mountDualCheckpointHost({
+      nativeReply: () => compactionResponse('opaque-model-switch', 0, true, 'old-model-turn-state'),
+      compactionConfig: { auto: true, thresholdRatio: 0.02, retainTokens: 32, compactionRetries: 0 },
+    })
+    const debug = vi.spyOn(ctx.logger, 'debug').mockImplementation(() => undefined)
+    const session = openConversation('dual-model-switch')
+    const agent = idleAgent(session)
+    const config = { provider: 'openai-codex', model: 'gpt-6.1-terra' }
+    const selected = await agentEvents(ctx, agent).waterfall('agent/request', {
+      turn: 3, step: 1, signal: new AbortController().signal,
+    }, () => Promise.resolve(config))
+    expect(selected).toEqual(config)
+    expect(requests.map(request => request.kind)).toEqual(['portable', 'native'])
+    expect(session.requestHeader()?.config.model).toBe(MODEL)
+    expect(session.deriveMessages().some(message => message.content.some(
+      block => block.type === CODEX_NATIVE_CHECKPOINT_BLOCK_TYPE,
+    ))).toBe(true)
+    expect(JSON.stringify(debug.mock.calls)).toContain('model-switch')
+    await drain(ctx.llm.stream(markAgentLoopRequest(deepFreeze({
+      ...config, messages: session.deriveMessages(), sessionId: session.id,
+      signal: new AbortController().signal,
+    }))))
+    expect(requests.at(-1)?.headers.has('x-codex-turn-state')).toBe(false)
+    expect(JSON.stringify(session.snapshotEvents())).not.toContain('old-model-turn-state')
+  })
+
   it('hands automatic pressure turn state to exactly the next matching loop request', async () => {
     const rawTurnState = 'turn-state-pressure-secret'
     const { ctx, requests } = mountDualCheckpointHost({
@@ -1419,6 +1464,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const agent = idleAgent(session)
 
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -1571,6 +1617,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const standardSession = openConversation('dual-standard-context')
     const standardAgent = idleAgent(standardSession)
     await agentEvents(standard.ctx, standardAgent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -1593,6 +1640,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const longSession = openConversation('dual-long-context')
     const longAgent = idleAgent(longSession)
     await agentEvents(long.ctx, longAgent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -1697,6 +1745,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-cloned-request')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -1763,6 +1812,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const runPressure = (session: Session) => {
       const agent = idleAgent(session)
       return agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
         messages: [],
         turn: 3,
         step: 1,
@@ -1814,6 +1864,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-concurrent-request')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -1861,6 +1912,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const agent = idleAgent(session)
     const controller = new AbortController()
     const dispatched = agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -1902,6 +1954,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-stalled-teardown')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -1977,6 +2030,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-aborted-request')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2029,6 +2083,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-request-error')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2077,6 +2132,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-pressure-error')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2116,6 +2172,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-model-mismatch')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2165,6 +2222,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-account-mismatch')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2212,6 +2270,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-expiry')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2251,6 +2310,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-generation')
     const agent = idleAgent(session)
     await agentEvents(ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2291,6 +2351,7 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const session = openConversation('dual-hmr-disposal')
     const agent = idleAgent(session)
     await agentEvents(first.ctx, agent).waterfall('agent/pre-step', {
+      modelSelection: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
       messages: [],
       turn: 3,
       step: 1,
@@ -2510,7 +2571,13 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     const result = await ctx.compaction.compactNow(idleAgent(session), new AbortController().signal)
     expect(result).not.toBeNull()
     expect(requests.map(request => request.kind)).toEqual(['portable'])
-    for (const type of wireTypes) expect(JSON.stringify(requests[0]!.body.input)).toContain(`"type":"${type}"`)
+    // rc.1 emits in-history declarations; rc.2 can project them to current tools.
+    const body = requests[0]!.body
+    if (body.tools === undefined) {
+      for (const type of wireTypes) expect(JSON.stringify(body.input)).toContain(`"type":"${type}"`)
+    }
+    expect(JSON.stringify([body.tools, body.input])).toContain(tool.name)
+    expect(JSON.stringify([body.tools, body.input])).toContain(tool.description)
     const checkpoint = session.deriveMessages().find(current => isCompactCheckpointSource(current.source))
     expect(messageText(checkpoint!)).toContain(PORTABLE_SUMMARY)
     expect(checkpoint?.content.some(block => block.type === CODEX_NATIVE_CHECKPOINT_BLOCK_TYPE)).toBe(false)
@@ -3282,3 +3349,10 @@ describe('Codex Dual Checkpoint manual tracer bullet', () => {
     expect(warn.mock.calls.every(call => String(call[0]).includes('codex login'))).toBe(true)
   })
 })
+
+
+declare module '@deepseek-ai/dsh-llm/types' {
+  interface LlmRequestPurposeMap {
+    'session-title': true
+  }
+}

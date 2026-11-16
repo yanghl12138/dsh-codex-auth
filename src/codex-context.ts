@@ -4,7 +4,7 @@ import z from '@deepseek-ai/schemastery'
 
 /** Legacy namespace; DSH 0.2 uses the llm-codex-auth entry's Config Form. */
 export const CODEX_LLM_SETTINGS_NAMESPACE = 'codex-llm'
-/** Context baseline of the pinned pi-ai 1.1.0 long-context models. */
+/** Context baseline of the pinned pi-ai 1.3.0 long-context models. */
 export const CODEX_STANDARD_CONTEXT_WINDOW = 272_000
 /** Legacy opt-in budget for the supported GPT-5.6 family. */
 export const CODEX_LONG_CONTEXT_WINDOW = 1_000_000
@@ -38,7 +38,7 @@ export interface CodexModelSupplement {
 }
 
 /**
- * Terra is absent from pi-ai 1.1.0. Transport/image compatibility follows Sol;
+ * Terra is absent from pi-ai 1.3.0. Transport/image compatibility follows Sol;
  * Codex capacities/reasoning and API cost estimates: docs/codex-model-policy.md.
  */
 const CODEX_MODEL_SUPPLEMENTS: readonly CodexModelSupplement[] = [{

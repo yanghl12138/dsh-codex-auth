@@ -1,13 +1,13 @@
 # dsh-codex-auth
 
-> **DSH 兼容性：** Unreleased 工作区支持 DSH `0.2.1-rc.1` 至 `0.2.1-rc.5` 完整同版本依赖图及 pi-ai `1.1.0`。实验性 peer 有限范围为 `0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5`，继续拒绝混合依赖图、未来 rc 和稳定版，不添加版本豁免。已发布的 `0.3.4-rc.2` 仍仅支持 rc.1/rc.2。见[验证说明](docs/dsh-source-verification.md)。
+> **DSH 兼容性：** 主分支适配完整同版本的 DSH `0.2.2-rc.1` / `0.2.2-rc.2` 与准确的 pi-ai `1.3.0`；旧代码保留在 `0.2.1` 分支。见[验证说明](docs/dsh-source-verification.md)。
 
 [![npm rc version](https://img.shields.io/npm/v/dsh-codex-auth/rc.svg?label=npm%20rc)](https://www.npmjs.com/package/dsh-codex-auth)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
 [English](README.md) | 中文
 
-发布版本：**v0.3.4-rc.2**（npm 标签：`rc`）。
+已发布版本：**v0.3.4-rc.2**（npm 标签：`rc`，适配 DSH 0.2.1）。主分支的 DSH 0.2.2 适配尚未发布。
 
 这是一个自包含的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 **Codex 能力包**。它复用官方 **Codex CLI** 维护的 ChatGPT 登录态
@@ -24,9 +24,9 @@
 > `chatgpt.com/backend-api` 未获官方支持、可随时撤销，也可能在没有通知的情况下被限流
 > 或变更。请勿依赖它承载生产任务。
 
-## Unreleased：DSH 0.2.1-rc.4 / rc.5
+## Unreleased：DSH 0.2.2-rc.1 / rc.2
 
-插件加载、实验性压缩和 Native 回放新增 rc.4/rc.5 支持，无需版本豁免，保留 rc.1–rc.3 支持。开发依赖保持 rc.1，隔离官方源码验证默认使用 rc.5。保留 V4 会话、checkpoint codec v1、既有设置和登录态格式。已完成的检查及限制见[验证记录](docs/dsh-source-verification.md#rc4--rc5-verification-record)。
+主分支以 rc.2 为开发基线，适配两个 0.2.2 RC 与 pi-ai 1.3.0，支持模型切换前的 Native 压缩。旧运行时支持保留在 `0.2.1` 分支。V4 会话与 checkpoint codec v1 保持原格式。见[验证说明](docs/dsh-source-verification.md)。
 
 ## 0.3.4-rc.2：DSH 0.2.1-rc.1 / rc.2
 
@@ -96,11 +96,11 @@
   即使旧总开关曾经开启也不会自动延续；请到 GPT Auth 设置中重新启用所需模型。
   DSH 0.2 改用 `llm-codex-auth` Config Form，旧 `codex-llm` namespace 中的逐模型设置
   也不会自动迁移；升级后请检查并重新启用所需开关。
-- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 工作区适配 DSH `0.2.1-rc.1` 至 `0.2.1-rc.5`
-  和 pi-ai `1.1.0`。
+- `1.5.x` 分支保留兼容 DSH `0.1.5` 的版本；`main` 工作区适配 DSH `0.2.2-rc.1` 至 `0.2.2-rc.2`
+  和 pi-ai `1.3.0`。
 - 在「LLM 设置」中增加全局「服务档位」下拉框，使用 `llm-codex-auth` Config Form
   的 `serviceTier` 字段：`inherit`（不覆盖，默认）、`default`（标准）、`fast`
-  （为兼容 pi-ai `1.1.0`，发送 `service_tier: "priority"`）。配置缺少该字段时默认
+  （为兼容 pi-ai `1.3.0`，发送 `service_tier: "priority"`）。配置缺少该字段时默认
   不覆盖，不改变模型开关。保存后对新的 Codex LLM 请求生效，包括 Native 压缩；
   不影响网页搜索和图片创作。上下文一键开关不会修改服务档位，也不迁移旧 `codex-llm`
   namespace 中的偏好。
@@ -118,7 +118,7 @@ DSH 已经压缩的历史。
 
 ### Codex 模型与长上下文
 
-本仓库锁定的 pi-ai `1.1.0` 目录已包含 GPT-6 Astra、Sol（`gpt-6-sol`）、
+本仓库锁定的 pi-ai `1.3.0` 目录已包含 GPT-6 Astra、Sol（`gpt-6-sol`）、
 Luna（`gpt-6-luna`）和 GPT-6.1 Sol（`gpt-6.1-sol`）。插件直接使用上游描述符，
 包括价格、推理映射和输入限制。缺失的 GPT-6.1 Terra 使用 Sol 传输模板补齐，显式设置价格与推理映射，默认预算为 500,000 Token；
 原有基于 GPT-5.6 模板的回退条目已移除。本 Fork 默认关闭的**逐模型长上下文**开关独立设置预算：
@@ -243,7 +243,7 @@ Codex 请求会增加 Native 同级表示，任何不兼容或 Native 失败都�
 Checkpoint。即使下一次兼容 provider 请求实际回放 Native，stock conversation 视图仍会
 刻意显示 Portable 文本。
 
-该实验性导出支持完整一致的 DSH / Basic compaction `0.2.1-rc.1` 至 `0.2.1-rc.5` 图，要求 pi-ai `1.1.0`；
+该实验性导出支持完整一致的 DSH / Basic compaction `0.2.2-rc.1` 至 `0.2.2-rc.2` 图，要求 pi-ai `1.3.0`；
 在其他版本组合上挂载会给出可操作的兼容性错误并失败。长上下文模式可以改变 pressure
 压缩的触发时机，但不会改变 Native activation、codec、retention、v2 payload、回放兼容性
 或一次性 turn-continuation 契约。回滚时只需重新选择 DSH 内置 preset；已有会话仍可通过
@@ -280,14 +280,14 @@ Basic 负责。
 只有当 checkpoint 的 schema/codec/retention generation、provider、精确 model、哈希后的
 Codex account identity、instructions、tools、parallel/tool-choice controls、reasoning、text
 配置与 service tier 都匹配**最终生效**的 Responses 请求时，才会执行 Native 回放。Pi-ai
-`1.1.0` 可能把 deferred tools 编码为 `additional_tools`、`tool_search_call` 或 `tool_search_output` input item；这些项目和会话中 system/developer 消息的语义历史
+`1.3.0` 可能把 deferred tools 编码为 `additional_tools`、`tool_search_call` 或 `tool_search_output` input item；这些项目和会话中 system/developer 消息的语义历史
 不在当前 codec 的兼容 digest 内，因此这类 payload 在回放和新建 Native 时都会保守改用
 Portable 文本。组合的 payload callback 可以改变已有建模控制项；callback 完成后会重新判定
 并选择 Native 或 Portable。
 Request ID、prompt-cache key、临时 header、turn state 与 Long Context Mode 不参与兼容性。
 未知、损坏、超过 2 MiB、含 secret、混合格式或不兼容的状态会退化为 Portable 文本。生成的
 marker 只存在于 Host；marker 缺失、重复、嵌入、泄漏或未消费时会在网络请求之前失败。
-回放 converter 要求 DSH LLM / pi-ai Adapter 同为 rc.1–rc.5 中的一个版本，且 pi-ai 为 `1.1.0`；混合或其他
+回放 converter 要求 DSH LLM / pi-ai Adapter 同为 rc.1–rc.2 中的一个版本，且 pi-ai 为 `1.3.0`；混合或其他
 runtime 组合只使用 Portable 文本。Adapter generation 替换或 HMR 会使进程内 replay 与
 turn-continuation 状态失效，但不会修改持久化 Dual Checkpoint。
 
@@ -409,7 +409,7 @@ DSH alpha.5 会把持久化 `tool/call` 与 `tool/result` 事件分别投影为 
 
 ## 环境要求
 
-- DeepSeek Harness `0.2.1-rc.1`（统一依赖图）；不要与旧 rc 包族混装。
+- DeepSeek Harness `0.2.2-rc.2`（统一依赖图）；不要与旧 rc 包族混装。
 - Node.js `^22.19.0` 或 `>=24.0.0`。
 - `PATH` 中可用 `pnpm`（本项目测试版本为 `11.7.0`）。
 - `codex` CLI 已加入 `PATH`。
@@ -417,15 +417,20 @@ DSH alpha.5 会把持久化 `tool/call` 与 `tool/result` 事件分别投影为 
 
 ## 安装
 
-见[升级证据与测试方法](docs/dsh-source-verification.md#upgrade-from-dsh-020-rc2)。先停止 `dsh web`，确认目标 Host 使用统一的 DSH `0.2.1-rc.1` 依赖图，再将此准确预发布版本安装到目标 profile：
+主分支的 DSH 0.2.2 适配尚未发布，请构建本地制品；npm 上已有的
+`0.3.4-rc.2` 保留旧兼容范围。见[验证说明](docs/dsh-source-verification.md)。
+先停止 `dsh web`，确认目标 Host 使用完整同版本的 rc.1 或 rc.2 依赖图，再安装：
 
 ```sh
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm pack --pack-destination artifacts
 dsh --version
-dsh plugin --profile web add dsh-codex-auth@0.3.4-rc.2
+dsh plugin --profile web add /absolute/path/to/artifacts/dsh-codex-auth-0.3.4-rc.2.tgz
 dsh plugin --profile web list
 ```
 
-核对条目后重启 `dsh web` 并刷新浏览器。此版本通过 npm 的 `rc` 标签发布；不指定版本或标签会使用 `latest`，它不包含本次 DSH 0.2 适配。旧 DSH Host 应保留兼容的旧插件版本。
+重启 `dsh web` 并刷新浏览器。旧 DSH 应保留兼容的已发布插件，或使用 `0.2.1` 维护分支。
 
 ## Host 配置
 

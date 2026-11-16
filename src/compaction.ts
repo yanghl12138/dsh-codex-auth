@@ -69,7 +69,7 @@ const BASIC_FRAME_TOKEN_RESERVE = 256
 /** Verified coherent DSH graphs sharing the observed pi-ai conversion contract. */
 export const CODEX_COMPACTION_COMPATIBILITY = Object.freeze({
   dsh: SUPPORTED_DSH_PEER_RANGE,
-  piAi: '1.1.0',
+  piAi: '1.3.0',
 })
 
 /** Runtime facts accepted by the compatibility assertion. */
@@ -266,6 +266,7 @@ export class CodexCompactionEngine extends BasicCompactionEngine {
   constructor(ctx: Context, config: Config = {}) {
     assertCodexCompactionCompatibility()
     super(ctx, config)
+    codexNativeCompactionCoordinator.installModelSwitchBoundary(ctx)
     ctx.effect(
       () => () => this.lifecycleController.abort(
         new Error('codex native compaction: Adapter realm disposed'),
@@ -328,6 +329,33 @@ export class CodexCompactionEngine extends BasicCompactionEngine {
       } catch (error) {
         codexNativeCompactionCoordinator.commitAutomaticContinuation(false)
         codexNativeCompactionCoordinator.noteResult(diagnosticModel, 'failed')
+        throw error
+      }
+    })
+  }
+
+  override compactRegion(
+    ...args: Parameters<BasicCompactionEngine['compactRegion']>
+  ): ReturnType<BasicCompactionEngine['compactRegion']> {
+    const [start, end, agent, signal] = args
+    if (!codexNativeCompactionCoordinator.isModelSwitchRegion(agent)) {
+      return super.compactRegion(...args)
+    }
+    const operationSignal = this.operationSignal(signal ?? new AbortController().signal)
+    const target = currentRoutedTarget(agent)
+    return codexNativeCompactionCoordinator.runAutomatic({
+      agent,
+      trigger: 'model-switch',
+      target,
+      signal: operationSignal,
+      diagnostic: diagnostic => logNativeDiagnostic(this.ctx, diagnostic),
+    }, async () => {
+      try {
+        const result = await super.compactRegion(start, end, agent, operationSignal)
+        codexNativeCompactionCoordinator.noteResult(target?.model ?? 'unrouted', classifyCommit(result).diagnostic)
+        return result
+      } catch (error) {
+        codexNativeCompactionCoordinator.noteResult(target?.model ?? 'unrouted', 'failed')
         throw error
       }
     })

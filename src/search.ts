@@ -61,7 +61,7 @@ function searchSettings(config: Config): CodexSearchSettings {
 }
 
 export interface CodexSearchProviderOptions {
-  auth: Pick<CodexAuthService, 'credential'>
+  auth: Pick<CodexAuthService, 'credential'> & Partial<Pick<CodexAuthService, 'status'>>
   settings: () => CodexSearchSettings
   fetchImpl: typeof fetch
   /** Stable request/session id for the current operation. */
@@ -80,6 +80,12 @@ export class CodexSearchProvider implements WebSearchProvider {
 
   available(): boolean {
     return this.options.settings().enabled
+  }
+
+  async ready(): Promise<boolean> {
+    if (!this.options.settings().enabled) return false
+    // Existing custom credential resolvers may not provide local status facts.
+    return this.options.auth.status === undefined || (await this.options.auth.status()).configured
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {

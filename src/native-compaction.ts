@@ -56,7 +56,7 @@ import {
 
 const CODEX_ROUTE = 'openai-codex'
 
-type NativeCompactionTrigger = 'manual' | 'pressure' | 'context-overflow'
+type NativeCompactionTrigger = 'manual' | 'pressure' | 'context-overflow' | 'model-switch'
 type AutomaticCompactionTrigger = Exclude<NativeCompactionTrigger, 'manual'>
 
 type NativeCompactionFallback =
@@ -204,6 +204,20 @@ class CodexNativeCompactionCoordinator {
     ))
   }
 
+  /** Register after Basic so this prepend listener encloses its model-switch transaction. */
+  installModelSwitchBoundary(ctx: Context): void {
+    ctx.on('agent/request', (payload, next) => this.boundaryStorage.run(
+      { agent: payload.agent, trigger: 'model-switch' },
+      next,
+    ), { prepend: true })
+  }
+
+  isModelSwitchRegion(agent: Agent): boolean {
+    const boundary = this.boundaryStorage.getStore()
+    return this.storage.getStore() === undefined
+      && boundary?.agent === agent && boundary.trigger === 'model-switch'
+  }
+
   runManual<T>(
     input: {
       readonly sessionId: string
@@ -234,7 +248,8 @@ class CodexNativeCompactionCoordinator {
       signal: input.signal,
       diagnostic: input.diagnostic,
       trigger: input.trigger,
-      inline: boundary?.agent === input.agent && boundary.trigger === input.trigger,
+      inline: input.trigger !== 'model-switch'
+        && boundary?.agent === input.agent && boundary.trigger === input.trigger,
     }, task)
   }
 

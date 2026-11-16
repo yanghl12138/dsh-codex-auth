@@ -1,67 +1,117 @@
 # DSH source compatibility verification
 
-The Unreleased workspace accepts coherent DSH `0.2.1-rc.1` through `0.2.1-rc.5` graphs. Published `0.3.4-rc.2` supports only rc.1/rc.2. The registry development baseline and lockfile remain rc.1; the default official-source target is rc.5 at `b830ec950faba0a46dda564be3e2d854afed94f1`. Experimental compaction and Native replay additionally require pi-ai `1.1.0` and reject mixed DSH graphs. See the [verification record](#rc4--rc5-verification-record) for the checks actually completed.
+Main targets coherent DSH `0.2.2-rc.1` and `0.2.2-rc.2` with pi-ai exactly `1.3.0`.
+The `0.2.1` branch retains the pre-upgrade implementation. The development lockfile
+and default source target use rc.2. Old runtimes, mixed RC graphs, future RCs and
+stable versions are refused without exemptions. Historical verification below
+belongs to earlier code and is not evidence for this upgrade.
 
-## Build the official artifacts once
+| DSH | Official tag | Commit |
+| --- | --- | --- |
+| 0.2.2-rc.1 | `dsh-v0.2.2-rc.1` | `66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db` |
+| 0.2.2-rc.2 | `dsh-v0.2.2-rc.2` | `ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c` |
 
-Use a separate scratch directory, outside any plugin or live DSH installation:
+## Build and verify
+
+Build each graph separately in a scratch directory. Use Node >=24.9.0 and the
+upstream pnpm 11.28.5 for official source builds; this plugin uses pnpm 11.7.0.
 
 ```sh
-git clone --depth 1 --branch dsh-v0.2.1-rc.5 https://github.com/deepseek-ai/deepseek-harness.git harness
+git clone --depth 1 --branch dsh-v0.2.2-rc.2 https://github.com/deepseek-ai/deepseek-harness.git harness
 cd harness
 git rev-parse HEAD
-# Must be b830ec950faba0a46dda564be3e2d854afed94f1.
 PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 pnpm install --frozen-lockfile --ignore-scripts
 pnpm run build:lib
 pnpm --filter './packages/**' --filter './vendor/*' -r pack --pack-destination ../dsh-packages
 ```
 
-The Host and Client library build is required. Packing does not publish anything.
-The resulting directory can be reused to check each of the four plugins.
-
-## Check this plugin
-
-From this plugin's own repository:
+From the plugin directory:
 
 ```sh
-PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 pnpm install --frozen-lockfile
-PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 pnpm run check
-PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 pnpm run check:dsh-source -- /absolute/path/to/dsh-packages /absolute/path/to/harness/patches/@earendil-works__pi-ai@1.1.0.patch
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run check:dsh-source -- /absolute/path/to/dsh-packages /absolute/path/to/harness/patches/@earendil-works__pi-ai@1.3.0.patch
 ```
 
-The temporary `PNPM_CONFIG_MINIMUM_RELEASE_AGE=0` override permits verifying
-the newly published release before the configured registry age window expires;
-it does not change the workspace policy.
+Repeat with artifacts built from rc.1 and set `DSH_VERIFY_VERSION=0.2.2-rc.1`
+for that source check. Never mix artifact directories. Both tags use patch
+SHA-256 `4e1c90fd00aea42989664504668633033c1962e53c07860901edb4f72d843765`.
+The patch retains final tool arguments while avoiding repeated partial parsing,
+and includes Gemini tool signature preservation.
 
-The source check copies the current plugin into a new temporary directory,
-reads the supplied tarball manifests, rejects mixed DSH versions, explicitly
-supplies the complete DSH dependency/peer closure, and pins pi-ai to the plugin's
-development version. The second argument supplies the official Desktop runtime
-patch. The runner verifies its SHA-256 (`66eaf960054f10441b93ac3857114e96c1901f6d183713e2f21437b007111644`), copies it into the isolated graph, and records its identity beside the tarballs. This patch removes repeated parsing of partial tool arguments; final arguments are retained. It installs that isolated graph and runs
-`pnpm peers check` followed by the unmodified `pnpm run check` command.
+The runner rejects unknown targets, mixed, missing or duplicate DSH artifacts,
+and incorrect patches before installation. It copies the plugin and complete
+source dependency closure into a temporary directory, applies the exact Desktop
+patch, runs peer checks and the full package gate, and retains an `artifacts.json`
+receipt identifying the supplied bytes. Fixed-tag build instructions establish
+provenance; the runner does not authenticate arbitrary supplied tarballs. Local
+file overrides never enter the main manifest or lockfile.
 
-The runner leaves the verification directory and `artifacts.json` with SHA-512
-checksums for review. The fixed-tag build recipe establishes provenance; the
-runner identifies the supplied bytes and checks their versions, and does not
-claim to authenticate arbitrary user-supplied tarballs. Its local file overrides
-and generated lockfile stay in the temporary directory. They never enter this
-repository, an installed package, or a user profile.
+Model-switch compaction uses the previous committed model to summarize and
+capture Native state; Basic prices the proposed destination and owns its
+transaction. Old-model turn state is not handed to the destination. Native
+failure falls back to Portable. V4 sessions and checkpoint codec v1 remain
+unchanged; old checkpoints replay only when final request semantics match.
 
-Package smoke checks accept registry and source-artifact lock identities while checking the selected coherent graph and all three supported compatibility guards in the emitted package. The registry check targets rc.1. Source checks default to rc.5. Set `DSH_VERIFY_VERSION` to `0.2.1-rc.4`, `0.2.1-rc.3`, `0.2.1-rc.2`, or `0.2.1-rc.1` to check the corresponding earlier artifacts. Build each artifact directory from its own pinned official source tag; never mix tarballs from different releases.
+中文：主分支仅适配 0.2.2-rc.1 / rc.2 与 pi-ai 1.3.0；旧代码保存在
+`0.2.1` 分支。两个 RC 必须分别验证完整依赖图。源码检查使用准确的 Desktop
+补丁、保留制品回执，不修改现用 profile。离线检查不证明真实 OAuth、私有
+模型/搜索/图片后端或已安装 Desktop 的可用性。
 
-## 中文说明
+## 0.2.2 verification record
 
-当前检出版本以已发布的 DSH `0.2.1-rc.1` 为开发与最低支持基线，
-主锁文件保持 rc.1，三个实验性 peer 显式接受 rc.1–rc.5；打包检查核对所选完整依赖图。Codex 实验性压缩与 Native 回放
-还要求 pi-ai `1.1.0` 及准确的 DSH 版本；旧 DSH 请保留旧插件版本。
+Verified on 2026-11-13, Linux x64. Plugin checks used Node `22.22.2`, pnpm
+`11.7.0` and complete npm `11.16.0`. Official artifact builds used Node `24.18.0`
+and upstream pnpm `11.28.5`. The main frozen install passed with the rc.2 registry
+lockfile; no source paths or overrides enter that lockfile.
 
-按上面的固定 tag 构建、打包一次，rc.5 固定 tag 为 `dsh-v0.2.1-rc.5`，提交为 `b830ec950faba0a46dda564be3e2d854afed94f1`。然后在本插件目录运行
-`pnpm run check:dsh-source -- /绝对路径/dsh-packages /绝对路径/harness/patches/@earendil-works__pi-ai@1.1.0.patch`。脚本在临时目录内安装
-完整源码包图并运行全部检查，输出位置和制品哈希供复核。正式 package.json
-和锁文件不会写入本机临时路径，也不会安装到现用 profile。
+| Graph | Selected source packages | Tests | Complete `pnpm run check` |
+| --- | --- | --- | --- |
+| rc.2 registry baseline | — | 538 / 538 | Passed |
+| rc.1 official source | 99 | 538 / 538 | Passed |
+| rc.2 official source | 100 | 538 / 538 | Passed |
 
-升级验证覆盖离线类型检查、测试、构建、打包 smoke 和 publint；
-真实 OAuth、私有服务请求和用户现用 profile 不属于这些离线检查的证明范围。
+The complete gate includes peer checks, lint, Host/client type checks, Vitest,
+builds, packed-artifact smoke and publint. Both final `check:dsh-source` commands
+passed end to end. Both graphs use the pi-ai 1.3.0 Desktop patch identified above.
+The regressions cover model-switch Native success and summary failure, previous
+model preservation, turn-state isolation, old V4 restore/fork/continuation,
+Native/Portable replay, request transports, image tools, account RPC and search
+readiness. rc.1 keeps developer tool declarations in history, whereas rc.2 can
+project them into current tools; tests verify declaration retention and Portable
+fallback in both representations. Leading system heads remain eligible for
+matching Native replay; in-history instructions and tool-history updates remain
+Portable before conversion can erase those distinctions.
+
+The unrestricted upstream workspace build exceeded available memory (exit 137).
+The retained artifacts were subsequently built from unmodified official tag
+sources using the original per-package TypeScript and tsdown configurations,
+with the complete plugin dependency/peer closure selected by package-directory
+filters. Host bundling ran in batches of six, followed by Client bundling and
+packing. Typert metadata and the generator build plugin were compiled first.
+This validates the required Host/Client libraries, not a full Desktop application.
+The temporary build harness and detailed commands remain at
+`/tmp/dsh-build-022-source.py`, with logs `/tmp/dsh-022rc1-serial-final.log` and
+`/tmp/dsh-022rc2-serial.log`. Source installation used frozen upstream lockfiles.
+
+Temporary-directory quota failures were resolved by using a separate cache on
+disk. A repeat check can set `TMPDIR` to an existing writable scratch directory
+outside this repository and any live DSH installation. Failed preliminary runs
+are not counted as passing gates.
+
+| DSH | Retained receipt | Receipt SHA-256 |
+| --- | --- | --- |
+| rc.1 | `$HOME/.cache/dsh-source-verification/dsh-codex-auth-dsh-source-AShaSc/artifacts.json` | `107ac4068649e567870e31c44c2d004dd2cafc9f5406c57b9a9138bbb43f0f4c` |
+| rc.2 | `$HOME/.cache/dsh-source-verification/dsh-codex-auth-dsh-source-CF2aRO/artifacts.json` | `9d1f3df98ecb8e1997c8bb2914cc49da7f483777dc61fff826834c662d346427` |
+
+Official tag archive SHA-256: rc.1 =
+`416750920b64272899259c26b2fa0a4341132c9c19b43337da502ab7ebd599f1`;
+rc.2 = `d376fe64ec4b7c9b5837fb1155ed3a48e7e0e5f5b0aae0b91d9fb836daa8c20e`.
+Final logs are `/tmp/dsh-022-node22-check-final.log`,
+`/tmp/dsh-022rc1-source-final.log` and `/tmp/dsh-022rc2-source-final.log`.
+The `0.2.1` branch remains at `1c58ad32d5d0be49b4a14bae77ac1b8893568753`.
+No npm version/tag, installed profile, login file or checkpoint bytes were changed.
+Live OAuth, private backend availability and installed Desktop UI remain unverified.
 
 ## RC4 / RC5 verification record
 
