@@ -24,7 +24,7 @@ import { CODEX_NATIVE_CHECKPOINT_BLOCK_TYPE } from './native-checkpoint.ts'
 import { codexNativeCompactionCoordinator } from './native-compaction.ts'
 import type { CodexNativeCompactionDiagnostic } from './native-compaction.ts'
 import { installedPackageVersion } from './package-version.ts'
-import { isSupportedDshGraph, SUPPORTED_DSH_RUNTIMES, SUPPORTED_DSH_PEER_RANGE } from './runtime-compatibility.ts'
+import { areSupportedDshVersions, SUPPORTED_DSH_PEER_RANGE } from './runtime-compatibility.ts'
 
 /** The replayed prefix accepted by Basic's protected summarization Seam. */
 interface PortableSummarizationInput {
@@ -66,7 +66,7 @@ type DshRuntimePackage = typeof DSH_RUNTIME_PACKAGES[number]
 /** Conservative allowance for Basic's private framing around returned summary blocks. */
 const BASIC_FRAME_TOKEN_RESERVE = 256
 
-/** Verified coherent DSH graphs sharing the observed pi-ai conversion contract. */
+/** Supported DSH 0.2.2 range sharing the observed pi-ai conversion contract. */
 export const CODEX_COMPACTION_COMPATIBILITY = Object.freeze({
   dsh: SUPPORTED_DSH_PEER_RANGE,
   piAi: '1.3.0',
@@ -91,19 +91,19 @@ function installedRuntimeVersions(): CodexCompactionRuntimeVersions {
 }
 
 /**
- * Refuse an unverified runtime before mounting the experimental Adapter.
- * The stock DSH preset remains the supported fallback for every other pair.
+ * Refuse a runtime outside the supported 0.2.2 range before mounting the
+ * experimental Adapter. The stock DSH preset remains the fallback otherwise.
  */
 export function assertCodexCompactionCompatibility(
   actual: CodexCompactionRuntimeVersions = installedRuntimeVersions(),
 ): void {
-  const dshCompatible = isSupportedDshGraph(DSH_RUNTIME_PACKAGES.map(specifier => actual.dsh[specifier]))
+  const dshCompatible = areSupportedDshVersions(DSH_RUNTIME_PACKAGES.map(specifier => actual.dsh[specifier]))
   if (dshCompatible && actual.piAi === CODEX_COMPACTION_COMPATIBILITY.piAi) return
   const receivedDsh = DSH_RUNTIME_PACKAGES
     .map(specifier => `${specifier}=${actual.dsh[specifier]}`)
     .join(', ')
   throw new Error(
-    `codex-compaction requires DSH ${SUPPORTED_DSH_RUNTIMES.join(' or ')} consistently across `
+    `codex-compaction requires DSH ${SUPPORTED_DSH_PEER_RANGE} across `
     + `${DSH_RUNTIME_PACKAGES.join(', ')} and @earendil-works/pi-ai `
     + `${CODEX_COMPACTION_COMPATIBILITY.piAi}; received ${receivedDsh}; `
     + `@earendil-works/pi-ai=${actual.piAi}`,

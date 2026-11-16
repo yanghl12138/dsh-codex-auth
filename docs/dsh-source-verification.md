@@ -1,10 +1,13 @@
 # DSH source compatibility verification
 
-Main targets coherent DSH `0.2.2-rc.1` and `0.2.2-rc.2` with pi-ai exactly `1.3.0`.
-The `0.2.1` branch retains the pre-upgrade implementation. The development lockfile
-and default source target use rc.2. Old runtimes, mixed RC graphs, future RCs and
-stable versions are refused without exemptions. Historical verification below
-belongs to earlier code and is not evidence for this upgrade.
+Main accepts any DSH `0.2.2` package from `0.2.2-rc.1` through the stable `0.2.2`
+release, including mixed 0.2.2 RCs, with pi-ai exactly `1.3.0`. The `0.2.1`
+branch retains the pre-upgrade implementation. The development lockfile and
+default source target use rc.2. Old runtimes and versions outside the `0.2.2`
+range are refused without exemptions. Only rc.1 and rc.2 have official-source
+verification; later 0.2.2 RCs and the stable release are admitted by range
+semantics but are not covered by the fixed-tag records below. Historical
+verification below belongs to earlier code and is not evidence for this upgrade.
 
 | DSH | Official tag | Commit |
 | --- | --- | --- |
@@ -53,10 +56,11 @@ transaction. Old-model turn state is not handed to the destination. Native
 failure falls back to Portable. V4 sessions and checkpoint codec v1 remain
 unchanged; old checkpoints replay only when final request semantics match.
 
-中文：主分支仅适配 0.2.2-rc.1 / rc.2 与 pi-ai 1.3.0；旧代码保存在
-`0.2.1` 分支。两个 RC 必须分别验证完整依赖图。源码检查使用准确的 Desktop
-补丁、保留制品回执，不修改现用 profile。离线检查不证明真实 OAuth、私有
-模型/搜索/图片后端或已安装 Desktop 的可用性。
+中文：主分支接受 `0.2.2-rc.1` 至 `0.2.2` 正式版的全部 0.2.2 包（含混装 RC），
+并搭配 pi-ai 1.3.0；旧代码保存在 `0.2.1` 分支。官方源码验证仍只覆盖 rc.1 与
+rc.2，后续 RC 与稳定版仅通过版本范围准入，没有对应的固定 tag 记录。源码检查
+使用准确的 Desktop 补丁、保留制品回执，不修改现用 profile。离线检查不证明
+真实 OAuth、私有模型/搜索/图片后端或已安装 Desktop 的可用性。
 
 ## 0.2.2 verification record
 
@@ -242,6 +246,6 @@ The complete package gate must pass separately on rc.1 and rc.2. For a packed of
 Version `0.3.4-rc.2` carries this compatibility update on the npm `rc` channel and GitHub prerelease channel. Installation and offline Host checks do not establish rendered Desktop UI, live OAuth, model, search backend or image-generation behavior.
 
 
-Real profile loading also exposes a pre-existing metadata lookup defect: Node's `findPackageJSON` on a bare specifier uses the built-in resolver, rather than the DSH installation/profile interception. The reader now resolves the ESM entry first and then locates its package metadata; a custom-resolver, import-only package fixture and both actual Host loaders cover this distinction. The strict coherent-graph and exact pi-ai guard remain intact. See [Node's resolver caveat](https://nodejs.org/api/module.html#modulefindpackagejsonspecifier-base).
+Real profile loading also exposes a pre-existing metadata lookup defect: Node's `findPackageJSON` on a bare specifier uses the built-in resolver, rather than the DSH installation/profile interception. The reader now resolves the ESM entry first and then locates its package metadata; a custom-resolver, import-only package fixture and both actual Host loaders cover this distinction. That release kept its strict coherent-graph guard and exact pi-ai check. See [Node's resolver caveat](https://nodejs.org/api/module.html#modulefindpackagejsonspecifier-base).
 
 The local installation matrix uses the official `initProfile` output, including `nodeLinker: hoisted` and `autoInstallPeers: false`, then the real `dsh plugin add` command. Omitting that generated configuration creates an invalid test environment with pnpm-injected duplicate Host dependencies; successful admission in such a directory alone is not runtime compatibility evidence. The valid matrix checks the imported pi-ai and Basic engine against the actual Host modules, normal teardown, and immediate unload. rc.2 uses the installed Desktop carrier; rc.1 uses the official isolated CLI graph with the exact Desktop pi-ai 1.1.0 patch. No live credentials, provider requests, or user profile changes are involved.

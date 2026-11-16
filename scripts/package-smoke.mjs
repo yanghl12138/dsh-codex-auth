@@ -18,6 +18,12 @@ const EXPERIMENTAL_DSH_PEERS = [
 const PI_AI_VERSION = '1.3.0'
 // Independent expectations catch drift between the manifest, config, and emitted guards.
 const VERIFIED_DSH_RUNTIMES = ['0.2.2-rc.1', '0.2.2-rc.2']
+const SUPPORTED_DSH_RUNTIMES = [...VERIFIED_DSH_RUNTIMES, '0.2.2-rc.3', '0.2.2-rc.10', '0.2.2']
+const UNSUPPORTED_DSH_RUNTIMES = [
+  '0.2.2-rc.0', '0.2.3-rc.1', '0.2.3', '0.3.0',
+  '0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5',
+  '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1',
+]
 const EXACT_SUPPORT_PACKAGES = {
   '@deepseek-ai/cordis': '4.1.0',
   '@deepseek-ai/schemastery': '3.19.0',
@@ -121,10 +127,10 @@ try {
     }
   }
   for (const name of EXPERIMENTAL_DSH_PEERS) {
-    for (const version of VERIFIED_DSH_RUNTIMES) {
+    for (const version of SUPPORTED_DSH_RUNTIMES) {
       assert(semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
     }
-    for (const version of ['0.2.1-rc.1', '0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.4', '0.2.1-rc.5', '0.2.2-rc.3', '0.2.2', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1']) {
+    for (const version of UNSUPPORTED_DSH_RUNTIMES) {
       assert(!semver.satisfies(version, manifest.peerDependencies[name], SEMVER_OPTIONS))
     }
     for (const section of ['peerDependencies', 'devDependencies']) {
@@ -269,7 +275,15 @@ try {
     assert.equal(checkpoint.isCodexNativeReplayRuntimeCompatible({
       dshLlm: version, dshPiAi: version, piAi: PI_AI_VERSION,
     }), true)
-    for (const other of VERIFIED_DSH_RUNTIMES.filter(candidate => candidate !== version)) {
+    for (const other of SUPPORTED_DSH_RUNTIMES.filter(candidate => candidate !== version)) {
+      assert.doesNotThrow(() => compaction.assertCodexCompactionCompatibility({
+        dsh: { ...dsh, '@deepseek-ai/dsh-session': other }, piAi: PI_AI_VERSION,
+      }))
+      assert.equal(checkpoint.isCodexNativeReplayRuntimeCompatible({
+        dshLlm: version, dshPiAi: other, piAi: PI_AI_VERSION,
+      }), true)
+    }
+    for (const other of UNSUPPORTED_DSH_RUNTIMES) {
       assert.throws(() => compaction.assertCodexCompactionCompatibility({
         dsh: { ...dsh, '@deepseek-ai/dsh-session': other }, piAi: PI_AI_VERSION,
       }))

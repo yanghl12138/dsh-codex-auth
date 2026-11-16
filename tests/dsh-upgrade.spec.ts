@@ -171,12 +171,12 @@ it.each([
 })
 
 
-it('reproduces the published single-RC installation rejection and accepts both verified 0.2.2 RCs', () => {
+it('reproduces the published single-RC installation rejection and accepts the 0.2.2 range', () => {
   expect(evaluatePluginCompatibility(singleRcRelease.manifest, {}, '0.2.1-rc.1')).toBeUndefined()
   const rejected = evaluatePluginCompatibility(singleRcRelease.manifest, {}, '0.2.1-rc.2')
   expect(Object.keys(rejected?.requirements ?? {}).sort()).toEqual([...exactPeers].sort())
   expect(rejected?.exempted).toBe(false)
-  for (const runtime of ['0.2.2-rc.1', '0.2.2-rc.2']) {
+  for (const runtime of ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3', '0.2.2-rc.10', '0.2.2']) {
     expect(evaluatePluginCompatibility(manifest, {}, runtime)).toBeUndefined()
   }
 })
@@ -202,7 +202,11 @@ it.each(['0.2.2-rc.1', '0.2.2-rc.2'])('rejects the frozen two-RC manifest on %s 
   }
 })
 
-it.each(['0.2.1-rc.0', '0.2.1-rc.1.1', '0.2.1-rc.2.1', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1', '0.2.1-rc.1', '0.2.1-rc.2', '0.2.2-rc.3', '0.2.2', '0.3.0'])('does not admit unverified %s through prerelease range semantics', runtime => {
+it.each(['0.2.2-rc.3', '0.2.2-rc.10', '0.2.2'])('admits the supported %s through the 0.2.2 peer range', runtime => {
+  expect(evaluatePluginCompatibility(manifest, {}, runtime)).toBeUndefined()
+})
+
+it.each(['0.2.1-rc.0', '0.2.1-rc.1.1', '0.2.1-rc.2.1', '0.2.1-rc.3.1', '0.2.1-rc.4.1', '0.2.1-rc.5.1', '0.2.1-rc.6', '0.2.1', '0.2.1-rc.1', '0.2.1-rc.2', '0.2.2-rc.0', '0.2.3-rc.1', '0.2.3', '0.3.0'])('does not admit unsupported %s through prerelease range semantics', runtime => {
   const rejected = evaluatePluginCompatibility(manifest, {}, runtime)
   expect(rejected).toBeDefined()
   expect(rejected?.exempted).toBe(false)

@@ -2,7 +2,8 @@
 
 ## [Unreleased]
 
-- `compat`: Main targets coherent DSH 0.2.2-rc.1 / rc.2 and exact pi-ai 1.3.0; retain previous code on branch `0.2.1`. Update image-count budgets, Native model-switch capture and isolated official-source verification. No version exemptions or checkpoint migration.
+- `compat`: Relax the DSH peer and runtime gates from `0.2.2-rc.1 || 0.2.2-rc.2` to `>=0.2.2-rc.1 <0.2.3-0`, accepting later 0.2.2 RCs, the stable 0.2.2 release, and mixed 0.2.2 packages while keeping pi-ai exactly `1.3.0`. Official-source verification remains scoped to rc.1 and rc.2.
+- `compat`: Main targets DSH 0.2.2-rc.1 / rc.2 and exact pi-ai 1.3.0; retain previous code on branch `0.2.1`. Update image-count budgets, Native model-switch capture and isolated official-source verification. No version exemptions or checkpoint migration.
 
 ### Fork feature updates
 

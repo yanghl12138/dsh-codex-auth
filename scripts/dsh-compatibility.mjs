@@ -7,7 +7,7 @@ export const DSH_SOURCE_COMMITS = Object.freeze({
 })
 export const PI_AI_VERSION = '1.3.0'
 export const PI_AI_PATCH_SHA256 = '4e1c90fd00aea42989664504668633033c1962e53c07860901edb4f72d843765'
-export const DSH_PEER_RANGE = '0.2.2-rc.1 || 0.2.2-rc.2'
+export const DSH_PEER_RANGE = '>=0.2.2-rc.1 <0.2.3-0'
 export const DSH_EXPERIMENTAL_PEER_RANGE = DSH_PEER_RANGE
 export const DSH_VERIFY_VERSION = process.env.DSH_VERIFY_VERSION ?? DSH_BASELINE
 if (!Object.hasOwn(DSH_SOURCE_COMMITS, DSH_VERIFY_VERSION)) {
