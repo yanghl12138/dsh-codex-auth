@@ -95,9 +95,11 @@ This fork adds the following Codex model and request controls:
 
 - Adds GPT-6.1 Terra (`gpt-6.1-terra`) when absent from the installed
   `openai-codex` catalog, using GPT-6.1 Sol as its transport template. Existing
-  upstream descriptors are preserved.
+  upstream descriptors are preserved. The same catalog mechanism adds GPT-6.2
+  Sol and Astra when their IDs are missing.
 - Adds individual, live long-context switches for GPT-5.6 Luna, Sol, and Terra and
-  GPT-6 Astra, Sol, and Luna, plus GPT-6.1 Sol and Terra. The aggregate switch enables or disables all eight.
+  GPT-6 Astra, Sol, and Luna, GPT-6.1 Sol and Terra, and GPT-6.2 Sol and Astra.
+  The aggregate switch enables or disables all ten.
   DSH uses the reported context window for token-pressure and compaction
   decisions; no request parameter negotiates capacity with the backend.
 - Does not migrate the former global `codex-llm.longContextEnabled` preference.
@@ -139,9 +141,11 @@ Luna (`gpt-6-luna`), and GPT-6.1 Sol (`gpt-6.1-sol`). The plugin uses those
 descriptors directly, including pricing, reasoning mappings, and input limits.
 The plugin supplements missing GPT-6.1 Terra using GPT-6.1 Sol transport metadata,
 with explicit pricing and reasoning fields and a default 500,000-token budget;
-the old GPT-5.6-based fallback entries have been removed. This fork's default-off
+the old GPT-5.6-based fallback entries have been removed. GPT-6.2 Sol
+(`gpt-6.2-sol`) and Astra (`gpt-6.2-astra`) start at 500,000 and 272,000 tokens
+respectively when supplied by the plugin. This fork's default-off
 **per-model long-context switches** report independent budgets: **872,000 tokens for
-GPT-6/6.1**, and 1,000,000 tokens for supported GPT-5.6 models. Existing model-ID
+GPT-6/6.1/6.2**, and 1,000,000 tokens for supported GPT-5.6 models. Existing model-ID
 switches and the global `serviceTier` preference are preserved when merging upstream;
 the upstream `longContextEnabled` field is not reintroduced.
 The GPT-6 budget follows Codex OAuth metadata, not the public API context limit.
@@ -150,10 +154,11 @@ capacity or establish account entitlement. Enabling it cannot restore history
 already compacted, and long requests may consume account quota faster.
 
 Reasoning capabilities follow the installed descriptors: GPT-6 Sol/Luna retain
-Off support and send explicit `none`; Astra and GPT-6.1 Sol/Terra require reasoning.
+Off support and send explicit `none`; GPT-6 Astra, GPT-6.1 Sol/Terra, and both GPT-6.2 models require reasoning.
 `minimal` maps to `low`; Ultra is not sent as a raw wire effort.
-The route retains its GPT-6.1 Sol/Terra `low` default when no effort is selected.
-All supported GPT-6/6.1 models reject explicit `temperature` (including `0`) before
+When no effort is selected, GPT-6.2 Sol defaults to `medium`. GPT-6.2 Astra and
+GPT-6.1 Sol/Terra default to `low`. Both GPT-6.2 models support Fast mode.
+All supported GPT-6/6.1/6.2 models reject explicit `temperature` (including `0`) before
 credentials or transport. See [model-policy sources and verification limits](docs/codex-model-policy.md).
 
 Each profile can optionally hide exact model IDs with `excludedModelIds`
@@ -551,8 +556,8 @@ Login State coordinator available to Search/Image without owning an LLM route:
 | `timeoutMs` | `120000` | Request timeout in milliseconds (SSE response-header phase; also the WebSocket message idle interval; `0` disables it) |
 
 The GPT Auth Settings page controls long context independently for GPT-5.6 Luna,
-Sol, and Terra, GPT-6 Astra, Sol, and Luna, and GPT-6.1 Sol/Terra. Its aggregate switch is a
-front-end convenience that updates all eight context settings without changing
+Sol, and Terra, GPT-6 Astra, Sol, and Luna, GPT-6.1 Sol/Terra, and GPT-6.2 Sol/Astra.
+Its aggregate switch updates all ten context settings without changing
 `serviceTier`; it is not a plugin config field.
 Each default-off boolean uses its model ID as a field in the `llm-codex-auth`
 row's Config Form, for example `gpt-6.1-sol: true`. Settings persist in the active

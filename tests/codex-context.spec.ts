@@ -66,8 +66,8 @@ describe('applyCodexContextPolicy', () => {
     const models = Object.freeze(provider.getModels().map(model => Object.freeze(structuredClone(model))))
     const catalog = applyCodexContextPolicy(models, createDefaultCodexLlmSettings())
     expect(catalog.map(model => model.id)).toEqual(expect.arrayContaining([...CODEX_LONG_CONTEXT_MODEL_IDS]))
-    expect(catalog.slice(1)).toEqual(models)
-    models.forEach((model, index) => expect(catalog[index + 1]).toBe(model))
+    expect(catalog.slice(3)).toEqual(models)
+    models.forEach((model, index) => expect(catalog[index + 3]).toBe(model))
     expect(catalog[0]).toMatchObject({
       id: 'gpt-6.1-terra', contextWindow: 500_000, maxTokens: 128_000,
       cost: { input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25,
@@ -76,13 +76,39 @@ describe('applyCodexContextPolicy', () => {
     })
     const long = applyCodexContextPolicy(models, { ...createDefaultCodexLlmSettings(), 'gpt-6.1-terra': true })
     expect(long[0]).toEqual({ ...catalog[0], contextWindow: 872_000 })
-    expect(long.slice(1)).toEqual(models)
+    expect(long.slice(1)).toEqual(catalog.slice(1))
     const installed = Object.freeze({ ...catalog[0]!, contextWindow: 600_000 })
-    const complete = Object.freeze([installed, ...models])
+    const complete = Object.freeze([installed, ...catalog.slice(1)])
     expect(applyCodexContextPolicy(complete, createDefaultCodexLlmSettings())).toBe(complete)
     expect(applyCodexContextPolicy(models, {
       ...createDefaultCodexLlmSettings(), 'gpt-6.1-terra': true, excludedModelIds: ['gpt-6.1-terra'],
-    })).toEqual(models)
+    })).toEqual(catalog.slice(1))
+  })
+
+  it.each([
+    ['gpt-6.2-sol', 500_000, 2, 10, 'gpt-6.2-astra', 272_000],
+    ['gpt-6.2-astra', 272_000, 8, 40, 'gpt-6.2-sol', 500_000],
+  ] as const)('supplements %s independently of the other 6.2 model', (id, baseline, input, output, otherId, otherBaseline) => {
+    const templates = [fakeModel('gpt-6.1-sol'), fakeModel('gpt-6-astra')]
+    const settings = createDefaultCodexLlmSettings()
+    const catalog = applyCodexContextPolicy(templates, settings)
+    const model = catalog.find(candidate => candidate.id === id)
+    expect(model).toMatchObject({ contextWindow: baseline, maxTokens: 128_000,
+      input: ['text', 'image'], cost: { input, output }, thinkingLevelMap: { off: null, max: 'max' } })
+    const long = applyCodexContextPolicy(templates, { ...settings, [id]: true })
+    expect(long.find(candidate => candidate.id === id)).toEqual({ ...model, contextWindow: 872_000 })
+    expect(long.find(candidate => candidate.id === otherId)?.contextWindow).toBe(otherBaseline)
+    expect(applyCodexContextPolicy(templates, settings)).toEqual(catalog)
+
+    const installed = Object.freeze(fakeModel(id, { contextWindow: 600_000, name: 'Upstream model' }))
+    const partial = applyCodexContextPolicy([installed, ...templates], settings)
+    expect(partial.filter(candidate => candidate.id === id)).toEqual([installed])
+    expect(partial.find(candidate => candidate.id === id)).toBe(installed)
+    expect(partial.filter(candidate => candidate.id === otherId)).toHaveLength(1)
+    const complete = Object.freeze([fakeModel(otherId), ...partial.filter(candidate => candidate.id !== otherId)])
+    expect(applyCodexContextPolicy(complete, settings)).toBe(complete)
+    expect(applyCodexContextPolicy([installed, ...templates], { ...settings, excludedModelIds: [id, otherId] }))
+      .toEqual(partial.filter(candidate => candidate.id !== id && candidate.id !== otherId))
   })
 
   it('does not recreate retired GPT-6 fallbacks from legacy templates', () => {

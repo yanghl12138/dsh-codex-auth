@@ -88,9 +88,9 @@
 本 Fork 为 Codex 模型和请求控制增加了以下内容：
 
 - 当已安装的 pi-ai 目录缺少 GPT-6.1 Terra（`gpt-6.1-terra`）时，使用 GPT-6.1 Sol
-  传输模板和 Terra 专属参数补齐，保留已有上游描述符。
-- 为 GPT-5.6 Luna、Sol、Terra、GPT-6 Astra、Sol、Luna 以及 GPT-6.1 Sol/Terra 分别增加实时生效的
-  长上下文开关；汇总开关可以一键启用或关闭全部八项。DSH 会用报告的上下文窗口计算
+  传输模板和 Terra 专属参数补齐。GPT-6.2 Sol 和 Astra 缺失时也通过同一机制补齐，已安装的上游描述符优先。
+- 为 GPT-5.6 Luna、Sol、Terra、GPT-6 Astra、Sol、Luna、GPT-6.1 Sol/Terra 以及 GPT-6.2 Sol/Astra 分别增加实时生效的
+  长上下文开关；汇总开关可以一键启用或关闭全部十项。DSH 会用报告的上下文窗口计算
   Token 压力和压缩时机，插件不会在请求中发送用于和后端协商容量的参数。
 - **不迁移旧的全局 `codex-llm.longContextEnabled` 设置。**从旧全局设置升级后模型开关默认关闭，
   即使旧总开关曾经开启也不会自动延续；请到 GPT Auth 设置中重新启用所需模型。
@@ -121,17 +121,18 @@ DSH 已经压缩的历史。
 本仓库锁定的 pi-ai `1.3.0` 目录已包含 GPT-6 Astra、Sol（`gpt-6-sol`）、
 Luna（`gpt-6-luna`）和 GPT-6.1 Sol（`gpt-6.1-sol`）。插件直接使用上游描述符，
 包括价格、推理映射和输入限制。缺失的 GPT-6.1 Terra 使用 Sol 传输模板补齐，显式设置价格与推理映射，默认预算为 500,000 Token；
-原有基于 GPT-5.6 模板的回退条目已移除。本 Fork 默认关闭的**逐模型长上下文**开关独立设置预算：
-**GPT-6/6.1 为 872,000 Token**，支持的 GPT-5.6 模型保持原有 1,000,000 Token 策略。
+原有基于 GPT-5.6 模板的回退条目已移除。插件补齐的 GPT-6.2 Sol（`gpt-6.2-sol`）和 Astra（`gpt-6.2-astra`）默认预算分别为 500,000 和 272,000 Token。
+本 Fork 默认关闭的**逐模型长上下文**开关独立设置预算：
+**GPT-6/6.1/6.2 为 872,000 Token**，支持的 GPT-5.6 模型保持原有 1,000,000 Token 策略。
 合并上游时保留已有模型 ID 开关和全局 `serviceTier` 偏好，不重新引入上游的 `longContextEnabled` 字段。
 GPT-6 的预算以 Codex OAuth 元数据为依据，不套用公开 API 的上下文上限。
 DSH 据此计算 Token 压力和压缩时机；这不会协商后端容量或赋予账户使用权限，
 也无法恢复已经压缩的历史。长请求可能更快消耗账户配额。
 
 推理能力遵循已安装的描述符：GPT-6 Sol/Luna 保留上游 Off 支持，显式发送 `none`；
-Astra 和 GPT-6.1 Sol/Terra 必须启用推理。`minimal` 映射到 `low`，Ultra 不作为原始推理档位发送。
-路由保留 GPT-6.1 Sol/Terra 未选择推理档位时使用 `low` 的行为。
-当前已支持的 GPT-6/6.1 模型都在解析凭据或发送请求前拒绝显式 `temperature`（包括 `0`）。
+GPT-6 Astra、GPT-6.1 Sol/Terra 和两款 GPT-6.2 模型必须启用推理。`minimal` 映射到 `low`，Ultra 不作为原始推理档位发送。
+未指定推理档位时，GPT-6.2 Sol 默认使用 `medium`，GPT-6.2 Astra 和 GPT-6.1 Sol/Terra 默认使用 `low`。两款 GPT-6.2 模型均支持 Fast。
+当前已支持的 GPT-6/6.1/6.2 模型都在解析凭据或发送请求前拒绝显式 `temperature`（包括 `0`）。
 详见[模型策略依据与验证边界](docs/codex-model-policy.md)。
 
 每个 profile 可通过可选的 `excludedModelIds`（默认 `[]`）隐藏精确模型 ID。
@@ -458,9 +459,9 @@ dsh plugin --profile web list
 | `websocketConnectTimeoutMs` | `5000` | WebSocket 连接超时（毫秒，仅当 `transport` 不是 `sse` 时生效；`0` 表示禁用） |
 | `timeoutMs` | `120000` | 请求超时（毫秒，SSE 响应头阶段；同时作为 WebSocket 消息空闲间隔；`0` 表示禁用） |
 
-GPT Auth 设置页可分别控制 GPT-5.6 Luna、Sol、Terra、GPT-6 Astra、Sol、Luna 以及 GPT-6.1 Sol 的长上下文。
-汇总开关只是前端批量操作，会更新这七项上下文设置，不修改 `serviceTier`，不是插件配置字段。
-七项布尔字段均默认关闭，在 `llm-codex-auth` 行的 Config Form 中以模型 ID 为键，
+GPT Auth 设置页可分别控制 GPT-5.6 Luna、Sol、Terra、GPT-6 Astra、Sol、Luna、GPT-6.1 Sol/Terra 和 GPT-6.2 Sol/Astra 的长上下文。
+汇总开关只是前端批量操作，会更新这十项上下文设置，不修改 `serviceTier`，不是插件配置字段。
+十项布尔字段均默认关闭，在 `llm-codex-auth` 行的 Config Form 中以模型 ID 为键，
 例如 `gpt-6.1-sol: true`。设置保存到当前 profile 的 Cordis patch，开启后使用上述按模型区分的预算。
 
 不要再在 `llm-pi-ai.providers` 下添加 `openai-codex`，也不要同时安装 `dsh-codex`；

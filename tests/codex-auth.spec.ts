@@ -295,14 +295,19 @@ describe('Auth / LLM row configuration', () => {
     expect(() => parse({ 'gpt-6.1-sol': 'true' } as unknown as Partial<PluginConfigView>)).toThrow()
   })
 
-  it('preserves saved settings while defaulting missing GPT-6.1 switches off', () => {
+  it('preserves saved settings while defaulting newly added switches off', () => {
     const parse = CodexLlmSettingsConfig as unknown as (input: Record<string, unknown>) => Record<string, boolean>
     const saved = {
       'gpt-5.6-luna': true, 'gpt-5.6-sol': false, 'gpt-5.6-terra': true,
       'gpt-6-astra': false, 'gpt-6-sol': true, 'gpt-6-luna': false,
     }
-    expect(parse(saved)).toEqual({ ...saved, 'gpt-6.1-sol': false, 'gpt-6.1-terra': false, serviceTier: 'inherit', excludedModelIds: [] })
-    expect(parse({ ...saved, 'gpt-6.1-sol': true })).toEqual({ ...saved, 'gpt-6.1-sol': true, 'gpt-6.1-terra': false, serviceTier: 'inherit', excludedModelIds: [] })
+    const expected = {
+      ...saved, 'gpt-6.1-sol': false, 'gpt-6.1-terra': false, 'gpt-6.2-sol': false, 'gpt-6.2-astra': false,
+      serviceTier: 'inherit', excludedModelIds: [],
+    }
+    expect(parse(saved)).toEqual(expected)
+    expect(parse({ ...saved, 'gpt-6.1-sol': true, 'gpt-6.2-astra': true }))
+      .toEqual({ ...expected, 'gpt-6.1-sol': true, 'gpt-6.2-astra': true })
   })
 
   it('validates service tiers and defaults missing preferences without changing model switches', () => {
@@ -511,7 +516,8 @@ describe('CodexAuthAdapter route profile', () => {
     expect(standard.some(model => model.id === CODEX_GPT_6_ASTRA_MODEL_ID)).toBe(true)
     expect(standard.some(model => model.id === CODEX_GPT_6_1_SOL_MODEL_ID)).toBe(true)
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) {
-      expect(standard.find(model => model.id === id)?.contextWindow).toBe(id.startsWith('gpt-6.1-') ? 500_000 : CODEX_STANDARD_CONTEXT_WINDOW)
+      const baseline = id.startsWith('gpt-6.1-') || id === 'gpt-6.2-sol' ? 500_000 : CODEX_STANDARD_CONTEXT_WINDOW
+      expect(standard.find(model => model.id === id)?.contextWindow).toBe(baseline)
     }
     const unchanged = standard.find(model => model.id === 'gpt-5.4')
 

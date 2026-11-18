@@ -12,14 +12,14 @@ capacity must not be inferred from a public API model's total-context number.
 - [Pinned Codex context metadata, revision bcd6d9a](https://github.com/openai/codex/blob/bcd6d9ab6b9f26f85d76d0c680b3f88b367bffa0/codex-rs/models-manager/models.json)
   is the source of the retained GPT-6/6.1 872,000-token opt-in budget. This is
   an existing plugin policy, not a claim about current CLI defaults.
-- The route retains its explicit GPT-6.1 Sol `low` default and GPT-6 temperature
-  rejection. This cleanup does not change request policy or infer Codex OAuth
-  capabilities from public API metadata.
+- The local Codex model cache supplies the GPT-6.2 OAuth context and reasoning
+  defaults. The public API model pages supply output limits and cost estimates.
 
 ## Policy
 
 The installed provider catalog is authoritative. In pi-ai 1.3.0, GPT-6.1 Sol has a 500,000-token baseline; the older supported long-context model descriptors retain their catalog baselines. With default settings, the
-plugin preserves installed descriptors and adds Terra only when absent. The retired
+plugin preserves installed descriptors and fills missing GPT-6.1 Terra,
+GPT-6.2 Sol, and GPT-6.2 Astra entries. The retired
 GPT-5.6-based fallback entries and their duplicate pricing/reasoning data have
 been removed; older catalogs are not repaired by those historical entries.
 
@@ -47,9 +47,23 @@ input/cache rates double and output rate increases by 1.5x. These API estimates
 are not a claim about ChatGPT subscription billing. The public API's none effort
 and 1.05M context do not establish the Codex OAuth route's capabilities.
 
-The fork retains eight independent model-ID boolean switches and its global
+GPT-6.2 Sol uses the GPT-6.1 Sol transport template. GPT-6.2 Astra uses the
+GPT-6 Astra template. The local Codex model cache inspected on 2026-11-18
+reports a 500K baseline and medium reasoning for Sol, and a 272K baseline and
+low reasoning for Astra. Both report an 872K maximum and a Fast tier named
+`priority`. Both use the existing text and image inputs.
+
+Both supplements use the published 128K output limit and Standard API cost
+estimates. Per million tokens, Sol uses $2 input, $10 output, $0.10 cache read,
+and $2.50 for 30-minute cache writes. Astra uses $8, $40, $0.40, and $10.
+Above 272K input tokens, both use double the input and cache rates and 1.5 times
+the output rate. [Sol model metadata](https://developers.openai.com/api/docs/models/gpt-6.2-sol)
+and [Astra model metadata](https://developers.openai.com/api/docs/models/gpt-6.2-astra)
+provide these values.
+
+The fork has ten independent model-ID boolean switches and a global
 serviceTier preference; the aggregate context switch is UI-only. The
-long-context opt-in changes only contextWindow: GPT-6/6.1 uses 872K, while the
+long-context opt-in changes only contextWindow: GPT-6/6.1/6.2 uses 872K, while the
 pre-existing GPT-5.6 1M policy remains unchanged. Terra starts at 500K when supplied by the plugin. Turning the setting off
 returns the original provider capacity (or the supplement baseline); source
 objects are never mutated. The setting
@@ -72,22 +86,23 @@ Visibility filtering is not a request
 permission check and does not alter authentication, Search or Image settings.
 
 Installed provider descriptors own reasoning capabilities. The pinned pi-ai
-1.1.0 catalog marks Off unsupported for Astra and GPT-6.1 Sol, while GPT-6
+1.3.0 catalog marks Off unsupported for Astra and GPT-6.1 Sol, while GPT-6
 Sol/Luna use `off: "none"` and therefore advertise Off and send explicit none.
 DSH minimal is a compatibility alias for low. The adapter retains low for an
-unspecified GPT-6.1 Sol or Terra request; explicit efforts remain unchanged. Ultra is a
-Codex orchestration mode and is not sent as a raw wire effort. Temperature is
-rejected for the known GPT-6/6.1 models before authentication, regardless of
-direct or prepared call entry point.
+unspecified GPT-6.1 Sol, GPT-6.1 Terra, or GPT-6.2 Astra request and medium for
+GPT-6.2 Sol. Both GPT-6.2 models support low, medium, high, xhigh, and max.
+Ultra is reserved for Codex orchestration. The adapter rejects explicit
+temperature before authentication for supported GPT-6/6.1/6.2 models in both
+direct and prepared calls. [GPT-6.2 parameter support](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.2-sol)
 
 ## Verification boundary
 
-Tests cover preserving the actual pi-ai 1.1.0 descriptors, adding Terra, removal of
+Tests cover preserving the actual pi-ai 1.3.0 descriptors, adding Terra and GPT-6.2 Sol/Astra, removal of
 legacy automatic fallbacks, synthetic explicit supplements, provider precedence,
 deduplication, missing templates, and supplement/context/exclusion ordering.
 Request tests use the real installed catalog, covering direct/prepared calls,
 exact efforts, provider-owned Off support, unsupported Off/Ultra, temperature,
-Terra default/long budgets, and successful scripted SSE text and function-call decoding. Existing tests
+Terra and GPT-6.2 default/long budgets, and successful scripted SSE text and function-call decoding. Existing tests
 retain model-specific budgets, immutable defaults, toggling and UI wording.
 These use synthetic credentials and an offline transport, not a live account.
 This does not prove backend model availability, actual long-context acceptance,

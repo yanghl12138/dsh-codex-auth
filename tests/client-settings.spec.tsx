@@ -299,12 +299,12 @@ describe('Codex Capability Bundle settings', () => {
       expect(llm.set).toHaveBeenCalledWith(id, true)
     }
     expect((screen.getByLabelText('Enable or disable long context for all models') as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByText('Long context enabled for 8/8 models')).toBeTruthy()
+    expect(screen.getByText('Long context enabled for 10/10 models')).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('GPT-6 Sol'))
     await waitFor(() => expect(llm.set).toHaveBeenCalledWith('gpt-6-sol', false))
     expect((screen.getByLabelText('Enable or disable long context for all models') as HTMLInputElement).indeterminate).toBe(true)
-    expect(screen.getByText('Long context enabled for 7/8 models')).toBeTruthy()
+    expect(screen.getByText('Long context enabled for 9/10 models')).toBeTruthy()
 
     const expandSearch = screen.getByRole('button', { name: 'Expand Web Search settings' })
     const expandImage = screen.getByRole('button', { name: 'Expand Image Creation settings' })
@@ -321,29 +321,31 @@ describe('Codex Capability Bundle settings', () => {
     await waitFor(() => expect(image.set).toHaveBeenCalledWith('n', 3))
   })
 
-  it('toggles GPT-6.1 Terra independently and includes it in mixed and all-off states without changing the tier', async () => {
+  it.each([
+    ['GPT-6.1 Terra', 'gpt-6.1-terra'], ['GPT-6.2 Sol', 'gpt-6.2-sol'], ['GPT-6.2 Astra', 'gpt-6.2-astra'],
+  ])('toggles %s independently and includes it in mixed and all-off states without changing the tier', async (label, id) => {
     const llm = fakeScope({ ...LLM, serviceTier: 'fast' as const })
     render(<CodexCapabilitySettings rpc={rpc(authStatus({ planType: 'plus' }))} t={t} subscribe={subscribe}
       llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
     await screen.findByText('Active')
-    expect(screen.getByText('Long context enabled for 0/8 models')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('GPT-6.1 Terra'))
-    await waitFor(() => expect(llm.set).toHaveBeenCalledExactlyOnceWith('gpt-6.1-terra', true))
+    expect(screen.getByText('Long context enabled for 0/10 models')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText(label))
+    await waitFor(() => expect(llm.set).toHaveBeenCalledExactlyOnceWith(id, true))
     const aggregate = screen.getByLabelText('Enable or disable long context for all models') as HTMLInputElement
     expect(aggregate.indeterminate).toBe(true)
-    expect(screen.getByText('Long context enabled for 1/8 models')).toBeTruthy()
+    expect(screen.getByText('Long context enabled for 1/10 models')).toBeTruthy()
     llm.set.mockClear()
     fireEvent.click(aggregate)
-    await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(8))
+    await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(CODEX_LONG_CONTEXT_MODEL_IDS.length))
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) expect(llm.set).toHaveBeenCalledWith(id, true)
     expect(aggregate.indeterminate).toBe(false)
     expect(aggregate.checked).toBe(true)
     llm.set.mockClear()
     fireEvent.click(aggregate)
-    await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(8))
+    await waitFor(() => expect(llm.set).toHaveBeenCalledTimes(CODEX_LONG_CONTEXT_MODEL_IDS.length))
     for (const id of CODEX_LONG_CONTEXT_MODEL_IDS) expect(llm.set).toHaveBeenCalledWith(id, false)
     expect(aggregate.checked).toBe(false)
-    expect(screen.getByText('Long context enabled for 0/8 models')).toBeTruthy()
+    expect(screen.getByText('Long context enabled for 0/10 models')).toBeTruthy()
     expect(llm.set).not.toHaveBeenCalledWith('serviceTier', expect.anything())
     expect((screen.getByLabelText('Service tier') as HTMLSelectElement).value).toBe('fast')
   })

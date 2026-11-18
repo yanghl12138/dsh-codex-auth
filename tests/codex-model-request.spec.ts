@@ -12,6 +12,8 @@ import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_GPT_6_1_TERRA_MODEL_ID,
+  CODEX_GPT_6_2_ASTRA_MODEL_ID,
+  CODEX_GPT_6_2_SOL_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
   CODEX_GPT_6_SOL_MODEL_ID,
   createDefaultCodexLlmSettings,
@@ -19,6 +21,7 @@ import {
 import type { CodexLlmSettings } from '../src/codex-context.ts'
 
 const GPT_6_MODELS = [CODEX_GPT_6_SOL_MODEL_ID, CODEX_GPT_6_LUNA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID] as const
+const GPT_62_MODELS = [CODEX_GPT_6_2_SOL_MODEL_ID, CODEX_GPT_6_2_ASTRA_MODEL_ID] as const
 
 let context: Context | undefined
 
@@ -239,7 +242,25 @@ describe('Codex model request policy', () => {
       expect(payloads[0]).not.toHaveProperty('temperature')
     })
 
-    it.each(GPT_6_MODELS.flatMap(model => [0, 0.7].map(temperature => ({ model, temperature }))))(
+    it.each([
+      { model: CODEX_GPT_6_2_SOL_MODEL_ID, defaultEffort: 'medium' },
+      { model: CODEX_GPT_6_2_ASTRA_MODEL_ID, defaultEffort: 'low' },
+    ])('sends $model with its Codex default or explicit effort and Fast tier', async ({ model, defaultEffort }) => {
+      const { adapter, payloads } = fixture(undefined, {
+        settings: () => ({ ...createDefaultCodexLlmSettings(), serviceTier: 'fast' }),
+      })
+      const options = request({ model })
+      const call = mode === 'prepared' ? await adapter.prepareCall(options.provider, model) : adapter
+      await drain(call.stream(options))
+      await drain(call.stream({ ...options, reasoningEffort: ReasoningEffortId('max') }))
+      expect(payloads).toHaveLength(2)
+      for (const [index, effort] of [defaultEffort, 'max'].entries()) {
+        expect(payloads[index]).toMatchObject({ model, reasoning: { effort }, service_tier: 'priority' })
+        expect(payloads[index]).not.toHaveProperty('temperature')
+      }
+    })
+
+    it.each([...GPT_6_MODELS, ...GPT_62_MODELS].flatMap(model => [0, 0.7].map(temperature => ({ model, temperature }))))(
       'rejects $model temperature $temperature before resolving credentials', async ({ model, temperature }) => {
         const { adapter, credential, fetchMock } = fixture()
         const options = request({ model, temperature, reasoningEffort: ReasoningEffortId('off') })
@@ -254,42 +275,44 @@ describe('Codex model request policy', () => {
     )
   })
 
-  it.each([CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID])('streams a %s function call using the existing Responses transport', async model => {
-    const item = { type: 'function_call', id: 'fc_fixture', call_id: 'call_fixture', name: 'fixture_tool', arguments: '{"value":1}' }
-    const events = [
-      { type: 'response.output_item.added', output_index: 0, item: { ...item, arguments: '' } },
-      { type: 'response.function_call_arguments.delta', output_index: 0, item_id: item.id, delta: item.arguments },
-      { type: 'response.output_item.done', output_index: 0, item },
-      { type: 'response.completed', response: {
-        id: 'resp_fixture', status: 'completed', output: [item],
-        usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2,
-          input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
-      } },
-    ]
-    const { adapter, payloads } = fixture(() => new Response(
-      events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''),
-      { headers: { 'content-type': 'text/event-stream' } },
-    ))
-    const chunks = []
-    for await (const chunk of adapter.stream(request({
-      model,
-      reasoningEffort: ReasoningEffortId('low'),
-      tools: [{ name: 'fixture_tool', description: 'Offline tool fixture', parameters: {
-        type: 'object', properties: { value: { type: 'number' } }, required: ['value'],
-      } }],
-    }))) chunks.push(chunk)
-    expect(payloads[0]).toMatchObject({
-      model,
-      reasoning: { effort: 'low' },
-      tools: [expect.objectContaining({ type: 'function', name: 'fixture_tool' })],
-    })
-    expect(chunks).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'block-end', block: expect.objectContaining({
-        type: 'tool-call', name: 'fixture_tool', arguments: '{"value":1}',
-      }) }),
-      expect.objectContaining({ type: 'finish', reason: { kind: 'tool-calls' } }),
-    ]))
-  })
+  it.each([CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID, ...GPT_62_MODELS])(
+    'streams a %s function call using the existing Responses transport', async model => {
+      const item = { type: 'function_call', id: 'fc_fixture', call_id: 'call_fixture', name: 'fixture_tool', arguments: '{"value":1}' }
+      const events = [
+        { type: 'response.output_item.added', output_index: 0, item: { ...item, arguments: '' } },
+        { type: 'response.function_call_arguments.delta', output_index: 0, item_id: item.id, delta: item.arguments },
+        { type: 'response.output_item.done', output_index: 0, item },
+        { type: 'response.completed', response: {
+          id: 'resp_fixture', status: 'completed', output: [item],
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2,
+            input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
+        } },
+      ]
+      const { adapter, payloads } = fixture(() => new Response(
+        events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''),
+        { headers: { 'content-type': 'text/event-stream' } },
+      ))
+      const chunks = []
+      for await (const chunk of adapter.stream(request({
+        model,
+        reasoningEffort: ReasoningEffortId('low'),
+        tools: [{ name: 'fixture_tool', description: 'Offline tool fixture', parameters: {
+          type: 'object', properties: { value: { type: 'number' } }, required: ['value'],
+        } }],
+      }))) chunks.push(chunk)
+      expect(payloads[0]).toMatchObject({
+        model,
+        reasoning: { effort: 'low' },
+        tools: [expect.objectContaining({ type: 'function', name: 'fixture_tool' })],
+      })
+      expect(chunks).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'block-end', block: expect.objectContaining({
+          type: 'tool-call', name: 'fixture_tool', arguments: '{"value":1}',
+        }) }),
+        expect.objectContaining({ type: 'finish', reason: { kind: 'tool-calls' } }),
+      ]))
+    },
+  )
 
   it.each(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(
     'preserves the Astra %s reasoning wire mapping', async level => {
@@ -306,7 +329,8 @@ describe('Codex model request policy', () => {
   )
 
   describe.each(['direct', 'prepared'] as const)('%s GPT-6 reasoning', mode => {
-    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID].flatMap(model => ['off', 'ultra'].map(level => ({ model, level }))))(
+    it.each([CODEX_GPT_6_ASTRA_MODEL_ID, CODEX_GPT_6_1_SOL_MODEL_ID, CODEX_GPT_6_1_TERRA_MODEL_ID, ...GPT_62_MODELS]
+      .flatMap(model => ['off', 'ultra'].map(level => ({ model, level }))))(
       'rejects upstream-unsupported $model $level before credentials or transport', async ({ model, level }) => {
         const { adapter, credential, fetchMock } = fixture()
         const options = request({ model, reasoningEffort: ReasoningEffortId(level) })

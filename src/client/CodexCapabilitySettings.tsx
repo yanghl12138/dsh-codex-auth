@@ -8,23 +8,13 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CodexAuthRpcClient, CodexAuthStatusView, CodexUsageView } from '../rpc-contract.ts'
 import type { CodexAuthKey } from './locales.ts'
-import type { CodexServiceTier } from '../codex-context.ts'
+import type { CodexLlmSettings } from '../codex-context.ts'
 import { IMAGE_MODELS, IMAGE_SIZES, isImageSize, supportsImageQuality, supportsImageSize } from '../image-options.ts'
 import type { ImageQuality, ImageSize } from '../image-options.ts'
 import classes from './CodexCapabilitySettings.module.css'
 
-export interface LlmSettingsView {
+export interface LlmSettingsView extends CodexLlmSettings {
   network?: CodexNetworkSettings
-  serviceTier: CodexServiceTier
-  'gpt-5.6-luna': boolean
-  'gpt-5.6-sol': boolean
-  'gpt-5.6-terra': boolean
-  'gpt-6-astra': boolean
-  'gpt-6-sol': boolean
-  'gpt-6.1-sol': boolean
-  'gpt-6.1-terra': boolean
-  'gpt-6-luna': boolean
-  excludedModelIds?: string[]
 }
 
 const LONG_CONTEXT_FIELDS = [
@@ -36,6 +26,8 @@ const LONG_CONTEXT_FIELDS = [
   ['gpt-6.1-sol', 'contextGpt61Sol'],
   ['gpt-6.1-terra', 'contextGpt61Terra'],
   ['gpt-6-luna', 'contextGpt6Luna'],
+  ['gpt-6.2-sol', 'contextGpt62Sol'],
+  ['gpt-6.2-astra', 'contextGpt62Astra'],
 ] as const satisfies ReadonlyArray<readonly [keyof LlmSettingsView, CodexAuthKey]>
 
 export interface SearchSettingsView {

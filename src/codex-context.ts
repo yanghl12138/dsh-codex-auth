@@ -15,6 +15,8 @@ export const CODEX_GPT_6_ASTRA_MODEL_ID = 'gpt-6-astra'
 export const CODEX_GPT_6_SOL_MODEL_ID = 'gpt-6-sol'
 export const CODEX_GPT_6_1_SOL_MODEL_ID = 'gpt-6.1-sol'
 export const CODEX_GPT_6_1_TERRA_MODEL_ID = 'gpt-6.1-terra'
+export const CODEX_GPT_6_2_SOL_MODEL_ID = 'gpt-6.2-sol'
+export const CODEX_GPT_6_2_ASTRA_MODEL_ID = 'gpt-6.2-astra'
 export const CODEX_GPT_6_LUNA_MODEL_ID = 'gpt-6-luna'
 
 /** Models with a model-specific opt-in long-context budget. */
@@ -27,6 +29,8 @@ export const CODEX_LONG_CONTEXT_MODEL_IDS = [
   CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_GPT_6_1_TERRA_MODEL_ID,
   CODEX_GPT_6_LUNA_MODEL_ID,
+  CODEX_GPT_6_2_SOL_MODEL_ID,
+  CODEX_GPT_6_2_ASTRA_MODEL_ID,
 ] as const
 
 const LONG_CONTEXT_MODEL_IDS = new Set<string>(CODEX_LONG_CONTEXT_MODEL_IDS)
@@ -37,10 +41,12 @@ export interface CodexModelSupplement {
   readonly overrides: Pick<Model<Api>, 'id' | 'name'> & Partial<Model<Api>>
 }
 
-/**
- * Terra is absent from pi-ai 1.3.0. Transport/image compatibility follows Sol;
- * Codex capacities/reasoning and API cost estimates: docs/codex-model-policy.md.
- */
+const CODEX_REQUIRED_REASONING_LEVELS = {
+  off: null, minimal: 'low', low: 'low', medium: 'medium',
+  high: 'high', xhigh: 'xhigh', max: 'max',
+} as const
+
+/** Codex capacities and API cost estimates are documented in docs/codex-model-policy.md. */
 const CODEX_MODEL_SUPPLEMENTS: readonly CodexModelSupplement[] = [{
   templateId: CODEX_GPT_6_1_SOL_MODEL_ID,
   overrides: {
@@ -48,15 +54,44 @@ const CODEX_MODEL_SUPPLEMENTS: readonly CodexModelSupplement[] = [{
     name: 'GPT-6.1 Terra',
     contextWindow: 500_000,
     maxTokens: 128_000,
-    thinkingLevelMap: {
-      off: null, minimal: 'low', low: 'low', medium: 'medium',
-      high: 'high', xhigh: 'xhigh', max: 'max',
-    },
+    thinkingLevelMap: CODEX_REQUIRED_REASONING_LEVELS,
     cost: {
       input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25,
       tiers: [{
         inputTokensAbove: 272_000,
         input: 2, output: 7.5, cacheRead: 0.1, cacheWrite: 2.5,
+      }],
+    },
+  },
+}, {
+  templateId: CODEX_GPT_6_1_SOL_MODEL_ID,
+  overrides: {
+    id: CODEX_GPT_6_2_SOL_MODEL_ID,
+    name: 'GPT-6.2 Sol',
+    contextWindow: 500_000,
+    maxTokens: 128_000,
+    thinkingLevelMap: CODEX_REQUIRED_REASONING_LEVELS,
+    cost: {
+      input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5,
+      tiers: [{
+        inputTokensAbove: 272_000,
+        input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5,
+      }],
+    },
+  },
+}, {
+  templateId: CODEX_GPT_6_ASTRA_MODEL_ID,
+  overrides: {
+    id: CODEX_GPT_6_2_ASTRA_MODEL_ID,
+    name: 'GPT-6.2 Astra',
+    contextWindow: CODEX_STANDARD_CONTEXT_WINDOW,
+    maxTokens: 128_000,
+    thinkingLevelMap: CODEX_REQUIRED_REASONING_LEVELS,
+    cost: {
+      input: 8, output: 40, cacheRead: 0.4, cacheWrite: 10,
+      tiers: [{
+        inputTokensAbove: 272_000,
+        input: 16, output: 60, cacheRead: 0.8, cacheWrite: 20,
       }],
     },
   },

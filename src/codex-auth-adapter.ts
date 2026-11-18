@@ -49,6 +49,8 @@ import {
   CODEX_GPT_6_SOL_MODEL_ID,
   CODEX_GPT_6_1_SOL_MODEL_ID,
   CODEX_GPT_6_1_TERRA_MODEL_ID,
+  CODEX_GPT_6_2_ASTRA_MODEL_ID,
+  CODEX_GPT_6_2_SOL_MODEL_ID,
 } from './codex-context.ts'
 import type { CodexLlmSettings, CodexServiceTier } from './codex-context.ts'
 import { CodexNativeCheckpointReplay } from './native-checkpoint-replay.ts'
@@ -419,12 +421,19 @@ export class CodexAuthAdapter extends PiAiAdapter {
   }
 }
 
-/** Preserve this route's GPT-6.1 Sol/Terra low default when the caller omits an effort. */
+/** Use Codex defaults for models with an explicit route default. */
 function withCodexModelDefaults(options: GenerateOptions): GenerateOptions {
-  return (options.model === CODEX_GPT_6_1_SOL_MODEL_ID || options.model === CODEX_GPT_6_1_TERRA_MODEL_ID)
-    && options.reasoningEffort === undefined
-    ? { ...options, reasoningEffort: ReasoningEffortId('low') }
-    : options
+  if (options.reasoningEffort !== undefined) return options
+  switch (options.model) {
+    case CODEX_GPT_6_2_SOL_MODEL_ID:
+      return { ...options, reasoningEffort: ReasoningEffortId('medium') }
+    case CODEX_GPT_6_2_ASTRA_MODEL_ID:
+    case CODEX_GPT_6_1_SOL_MODEL_ID:
+    case CODEX_GPT_6_1_TERRA_MODEL_ID:
+      return { ...options, reasoningEffort: ReasoningEffortId('low') }
+    default:
+      return options
+  }
 }
 
 /** Reject unsupported model options before auth resolution or request-state preparation. */
@@ -443,6 +452,13 @@ async function* validateCodexStream(
     && options.temperature !== undefined) {
     throw new LlmError(
       'GPT-6 Sol, Luna, and GPT-6.1 Sol/Terra do not support temperature on this Codex route; remove temperature from the model request',
+      'UNSUPPORTED_OPTION',
+    )
+  }
+  if ((options.model === CODEX_GPT_6_2_SOL_MODEL_ID || options.model === CODEX_GPT_6_2_ASTRA_MODEL_ID)
+    && options.temperature !== undefined) {
+    throw new LlmError(
+      'GPT-6.2 Sol and Astra do not support temperature; remove temperature from the model request',
       'UNSUPPORTED_OPTION',
     )
   }
