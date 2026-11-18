@@ -28,6 +28,7 @@ import {
 import type {
   CodexAuthFile, CodexAuthFileVersion, CodexAuthSnapshot, CodexRefreshReply,
 } from './codex-auth.ts'
+import type { CodexNetwork } from './codex-network.ts'
 import { readBoundedResponseText } from './bounded-response.ts'
 import type { CodexAuthLoginMode, CodexAuthStatusView, CodexUsageView } from './rpc-contract.ts'
 export type { CodexAuthLoginMode, CodexAuthStatusView, CodexUsageView } from './rpc-contract.ts'
@@ -42,6 +43,8 @@ export interface CodexAuthServiceOptions {
   credentialRef: CredentialRef
   /** Lead time before access-token expiry that triggers refresh. */
   refreshLeadMs?: number
+  /** Shared Host-only networking for this bundle and its login subprocess. */
+  network?: CodexNetwork
   /** Injectable refresh transport; defaults to the Host's fetch. */
   fetchImpl?: typeof fetch
   /** Host-owned deadline for the best-effort usage probe; primarily injectable for tests. */
@@ -136,6 +139,8 @@ export class CodexAuthService extends Service {
     this.probeCodex()
     this.ctx.effect(() => () => this.disposeOperations(), 'codex-auth: operations')
   }
+
+  get network(): CodexNetwork | undefined { return this.options.network }
 
   private async disposeOperations(): Promise<void> {
     if (this.disposed) return
@@ -286,7 +291,10 @@ export class CodexAuthService extends Service {
     }
     const args = mode === 'device' ? ['login', '--device-auth'] : ['login']
     try {
-      const child = (this.options.spawnImpl ?? spawn)(this.options.codexCommand, args, { detached: true, stdio: 'ignore' })
+      const env = this.network?.loginEnvironment()
+      const child = (this.options.spawnImpl ?? spawn)(this.options.codexCommand, args, {
+        detached: true, stdio: 'ignore', ...(env === undefined ? {} : { env }),
+      })
       child.unref()
       return Promise.resolve({ started: true })
     } catch (error) {

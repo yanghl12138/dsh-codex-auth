@@ -2,6 +2,17 @@
 
 /** English strings (the key-set source of truth for this pair). */
 export const en = {
+  networkTitle: 'Network connection',
+  networkIntro: 'Shared by Codex models, token refresh, usage, compaction, search and image creation.',
+  networkMode: 'Connection mode',
+  networkInherit: 'Follow DSH',
+  networkCustom: 'Custom proxy',
+  networkAddress: 'Proxy address',
+  networkSave: 'Save',
+  networkSaved: 'Saved. Applies to new requests.',
+  networkInvalid: 'Enter an HTTP/HTTPS proxy URL without credentials, path, query or fragment. SOCKS is not supported.',
+  networkSse: 'Custom proxy uses SSE for model connections. Use the HTTP port of your proxy application.',
+  networkHost: 'Connections originate on the DSH host; 127.0.0.1 refers to that host. Browser login pages use the browser’s network settings.',
   nav: 'GPT Auth',
   title: 'GPT Auth',
   intro: 'Sign in with GPT Auth to unlock Codex LLM, image generation, and web search capabilities.',
@@ -110,6 +121,17 @@ export type CodexAuthKey = keyof typeof en
 
 /** Chinese strings (key-complete mirror of `en`). */
 export const zh: Record<CodexAuthKey, string> = {
+  networkTitle: '网络连接',
+  networkIntro: '用于 Codex 模型、认证刷新、额度查询、压缩、搜索和图片生成。',
+  networkMode: '连接方式',
+  networkInherit: '跟随 DSH',
+  networkCustom: '自定义代理',
+  networkAddress: '代理地址',
+  networkSave: '保存',
+  networkSaved: '已保存，对新请求生效。',
+  networkInvalid: '请输入不含认证信息、路径、查询参数或片段的 HTTP/HTTPS 代理地址。不支持 SOCKS。',
+  networkSse: '自定义代理使用 SSE 连接模型。请使用代理软件的 HTTP 端口。',
+  networkHost: '代理由运行 DSH 的主机连接，127.0.0.1 指该主机。浏览器登录页面使用浏览器自身的网络设置。',
   nav: 'GPT Auth',
   title: 'GPT Auth',
   intro: '使用 GPT Auth 登录接入 Codex 的 LLM、文生图、Websearch 能力。',

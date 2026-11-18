@@ -1,4 +1,5 @@
 /** Unified four-card settings surface for the Codex Capability Bundle. */
+import { DEFAULT_NETWORK_SETTINGS, validateNetworkSettings, type CodexNetworkSettings } from '../network-settings.ts'
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -13,6 +14,7 @@ import type { ImageQuality, ImageSize } from '../image-options.ts'
 import classes from './CodexCapabilitySettings.module.css'
 
 export interface LlmSettingsView {
+  network?: CodexNetworkSettings
   serviceTier: CodexServiceTier
   'gpt-5.6-luna': boolean
   'gpt-5.6-sol': boolean
@@ -196,6 +198,13 @@ export function CodexCapabilitySettings({
             </Button>
           </div>
           <p className={classes.privacyNotice}>{t('privacyNotice')}</p>
+        </article>
+
+        <article className={classes.card}>
+          <CardHeading title={t('networkTitle')} intro={t('networkIntro')} />
+          <SettingsState snapshot={llm} t={t}>
+            <NetworkControls scope={llmScope} snapshot={llm} t={t} />
+          </SettingsState>
         </article>
 
         {/* LLM Settings Card */}
@@ -826,4 +835,59 @@ function quotaTone(percent: number): 'error' | 'warning' | 'normal' {
   if (percent < 30) return 'error'
   if (percent <= 60) return 'warning'
   return 'normal'
+}
+
+function NetworkControls({ scope, snapshot, t }: {
+  scope: ConfigForm<LlmSettingsView>
+  snapshot: ConfigFormSnapshot<LlmSettingsView>
+  t: CodexCapabilitySettingsProps['t']
+}): ReactNode {
+  const saved = snapshot.value?.network ?? DEFAULT_NETWORK_SETTINGS
+  const [draft, setDraft] = useState(saved)
+  const [busy, setBusy] = useState(false)
+  const pending = useRef(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => { setDraft(saved) }, [saved.mode, saved.proxyUrl, scope])
+  const update = (value: CodexNetworkSettings): void => { setDraft(value); setMessage(null) }
+  const save = async (): Promise<void> => {
+    if (pending.current || !snapshot.writable) return
+    setMessage(null)
+    setFailed(false)
+    let next: CodexNetworkSettings
+    try { next = validateNetworkSettings(draft) } catch {
+      setFailed(true); setMessage(t('networkInvalid')); return
+    }
+    pending.current = true
+    setBusy(true)
+    try {
+      if (await scope.set('network', next) === false) throw new Error('save failed')
+      setDraft(next)
+      setMessage(t('networkSaved'))
+    } catch { setFailed(true); setMessage(t('writeFailed')) }
+    finally { pending.current = false; setBusy(false) }
+  }
+  return (
+    <div className={classes.formRows}>
+      <Control label={t('networkMode')}>
+        <select aria-label={t('networkMode')} value={draft.mode} disabled={!snapshot.writable || busy}
+          onChange={event => update({ ...draft, mode: event.target.value as CodexNetworkSettings['mode'] })}>
+          <option value="inherit">{t('networkInherit')}</option>
+          <option value="custom">{t('networkCustom')}</option>
+        </select>
+      </Control>
+      {draft.mode === 'custom' && <>
+        <Control label={t('networkAddress')}>
+          <input aria-label={t('networkAddress')} value={draft.proxyUrl} placeholder="http://127.0.0.1:7890"
+            disabled={!snapshot.writable || busy} onChange={event => update({ ...draft, proxyUrl: event.target.value })} />
+        </Control>
+        <p className={classes.imageHint}>{t('networkSse')}</p>
+      </>}
+      <p className={classes.imageHint}>{t('networkHost')}</p>
+      <div className={classes.actions}>
+        <Button variant="primary" disabled={!snapshot.writable || busy} onClick={() => { void save() }}>{t('networkSave')}</Button>
+        {message && <span role={failed ? 'alert' : 'status'}>{message}</span>}
+      </div>
+    </div>
+  )
 }

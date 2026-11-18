@@ -37,7 +37,8 @@ import {
 } from './codex-context.ts'
 import type { CodexLlmSettings } from './codex-context.ts'
 import { liveValue, type LiveValue } from './volatile-config.ts'
-import { installEnvHttpProxy } from './env-proxy.ts'
+import { CodexNetwork } from './codex-network.ts'
+import { DEFAULT_NETWORK_SETTINGS, validateNetworkSettings, type CodexNetworkSettings } from './network-settings.ts'
 import { createCodexAuthCommand } from './auth-command.ts'
 import {
   commandAccountMode, createLoopbackRpcGuard, type LoopbackRpcMode,
@@ -53,6 +54,8 @@ export const inject = ['llm']
 type LiveLlmSettings = { [K in keyof CodexLlmSettings]: LiveValue<CodexLlmSettings[K]> }
 
 export interface Config extends LiveLlmSettings {
+  /** Shared network policy; omitted configurations inherit the DSH host policy. */
+  network?: LiveValue<CodexNetworkSettings>
   /** Whether this row owns the openai-codex LLM route; auth coordination remains available when false. */
   llmEnabled: boolean
   /** Codex auth file path; empty (default) resolves `$CODEX_HOME` or `~/.codex/auth.json`. */
@@ -74,6 +77,10 @@ export interface Config extends LiveLlmSettings {
 }
 
 export const Config: z<Config> = z.object({
+  network: z.transform(z.object({
+    mode: z.union([z.const('inherit'), z.const('custom')]).default('inherit'),
+    proxyUrl: z.string().default(''),
+  }), value => validateNetworkSettings({ mode: value.mode ?? 'inherit', proxyUrl: value.proxyUrl ?? '' })).default(DEFAULT_NETWORK_SETTINGS).volatile(),
   llmEnabled: z.boolean().default(true),
   authJsonPath: z.string().default(''),
   credentialRef: z.string().default('CODEX_CHATGPT_TOKEN'),
@@ -91,9 +98,8 @@ export const Config: z<Config> = z.object({
 /** Mount the codex-auth adapter and service. */
 export function apply(ctx: Context, config: Config): void {
   installForeignCheckpointProjection(ctx)
-  // Without this, Node's fetch ignores the machine's HTTP proxy env and the
-  // chatgpt backend is unreachable on proxied networks (connect timeout).
-  installEnvHttpProxy((message) => { ctx.logger.warn(String(message)) })
+  const network = new CodexNetwork(() => liveValue(config.network ?? DEFAULT_NETWORK_SETTINGS))
+  ctx.effect(() => () => network.dispose(), 'codex network')
   const credentialReference: CredentialRef = credentialRef(config.credentialRef)
   const authJsonPath = config.authJsonPath.length > 0 ? config.authJsonPath : defaultAuthJsonPath()
   const service = new CodexAuthService(ctx, {
@@ -101,7 +107,8 @@ export function apply(ctx: Context, config: Config): void {
     codexCommand: config.codexCommand,
     credentialRef: credentialReference,
     refreshLeadMs: config.refreshLeadMs,
-    fetchImpl: fetch,
+    fetchImpl: network.fetch,
+    network,
   })
   // Account-control activation for the slash command. A terminal composition
   // composes no public WebServer, so the command starts enabled (local-only
@@ -130,7 +137,8 @@ export function apply(ctx: Context, config: Config): void {
       authJsonPath,
       credentialRef: credentialReference,
       refreshLeadMs: config.refreshLeadMs,
-      fetchImpl: fetch,
+      fetchImpl: network.fetch,
+      network,
       displayName: config.displayName,
       settings: () => currentSettings(),
       transport: config.transport,

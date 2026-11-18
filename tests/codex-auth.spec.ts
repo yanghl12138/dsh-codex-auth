@@ -22,6 +22,7 @@ import {
   CodexAuthAdapter, MAX_REQUEST_IMAGE_BYTES, REQUEST_IMAGE_MAX_BYTES, REQUEST_IMAGE_PIXEL_BUDGET,
   resolveCodexAccessToken,
 } from '../src/codex-auth-adapter.ts'
+import { CodexNetwork } from '../src/codex-network.ts'
 import { CodexAuthService, type CodexAuthServiceOptions } from '../src/codex-auth-service.ts'
 import {
   CODEX_GPT_6_ASTRA_MODEL_ID,
@@ -332,7 +333,7 @@ describe('Auth / LLM row configuration', () => {
     const saved = { ...createDefaultCodexLlmSettings(), 'gpt-6.1-sol': true, serviceTier: 'fast' }
     const { excludedModelIds: _excludedModelIds, ...legacy } = saved
     expect(parse(legacy)).toEqual(saved)
-    expect(liveValue(parsePlugin(legacy).excludedModelIds ?? [])).toEqual([])
+    expect(liveValue(parsePlugin({ ...legacy }).excludedModelIds ?? [])).toEqual([])
     const excludedModelIds = ['gpt-6.1-sol', 'unknown', 'gpt-6.1-sol']
     expect(parse({ ...legacy, excludedModelIds })).toEqual({ ...saved, excludedModelIds })
     expect(liveValue(parsePlugin({ ...legacy, excludedModelIds }).excludedModelIds ?? [])).toEqual(excludedModelIds)
@@ -1306,4 +1307,33 @@ describe('CodexAuthService', () => {
     expect(defaultAuthJsonPath({ CODEX_HOME: '/x' })).toBe(join('/x', 'auth.json'))
     expect(defaultAuthJsonPath({})).toBe(join(homedir(), '.codex', 'auth.json'))
   })
+})
+
+
+it('passes the proxy only to the login subprocess, preserving the parent environment', async () => {
+  const ctx = new Context()
+  let mode: 'inherit' | 'custom' = 'custom'
+  const network = new CodexNetwork(() => ({ mode, proxyUrl: 'http://127.0.0.1:7890' }))
+  const child = Object.assign(new EventEmitter(), { unref: vi.fn(), kill: vi.fn(), stdout: new EventEmitter(), stderr: new EventEmitter() })
+  const spawnMock = vi.fn(() => child)
+  const before = { ...process.env }
+  const service = new CodexAuthService(ctx, {
+    authJsonPath: '/nonexistent/network-login-fixture.json', codexCommand: 'synthetic-codex',
+    credentialRef: credentialRef('SYNTHETIC_NETWORK'), network,
+    spawnImpl: spawnMock as unknown as NonNullable<CodexAuthServiceOptions['spawnImpl']>,
+  })
+  try {
+    child.emit('spawn')
+    child.stdout.emit('data', 'codex-cli synthetic')
+    child.emit('close', 0)
+    expect(service.available).toBe(true)
+    await service.login('device')
+    expect(spawnMock).toHaveBeenLastCalledWith('synthetic-codex', ['login', '--device-auth'], {
+      detached: true, stdio: 'ignore', env: network.loginEnvironment(),
+    })
+    mode = 'inherit'
+    await service.login('browser')
+    expect(spawnMock).toHaveBeenLastCalledWith('synthetic-codex', ['login'], { detached: true, stdio: 'ignore' })
+    expect(process.env).toEqual(before)
+  } finally { await ctx.fiber.dispose(); await network.dispose() }
 })

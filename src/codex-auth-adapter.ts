@@ -39,6 +39,7 @@ import {
   authState, MAX_REFRESH_AGE_MS, mergeRefreshed, needsRefresh, readAuthFile, refreshTooOld,
   refreshTokens, writeAuthFile,
 } from './codex-auth.ts'
+import type { CodexNetwork } from './codex-network.ts'
 import type { CodexAuthFile } from './codex-auth.ts'
 import type { CodexAuthService } from './codex-auth-service.ts'
 import {
@@ -88,7 +89,7 @@ export const REQUEST_IMAGE_PIXEL_BUDGET = 2048 * 2048
 /** Default maximum encoded byte length for one normalized request image. */
 export const REQUEST_IMAGE_MAX_BYTES = 1024 * 1024
 
-type CodexProviderTransport = Pick<CodexAuthAdapterOptions, 'fetchImpl' | 'timeoutMs'> & {
+type CodexProviderTransport = Pick<CodexAuthAdapterOptions, 'fetchImpl' | 'timeoutMs' | 'network'> & {
   readonly streamIdleTimeoutMs: number
 }
 
@@ -127,6 +128,8 @@ export interface CodexAuthAdapterOptions {
   credentialRef: CredentialRef
   /** Lead time before access-token expiry that triggers a refresh. */
   refreshLeadMs: number
+  /** Shared plugin network policy, including streaming operation lifetimes. */
+  network?: CodexNetwork
   /** Injectable fetch for tests. */
   fetchImpl: typeof fetch
   /** Selector label for the route. */
@@ -203,16 +206,22 @@ function codexProvider(
     getModels: () => applyCodexContextPolicy(base.getModels(), settings()),
     // Delegated rather than copied: the catalog provider stays the receiver,
     // so an implementation holding state on itself keeps working.
-    stream: (model, context, options) => base.stream(
-      model,
-      context,
-      prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay, settings().serviceTier),
-    ),
-    streamSimple: (model, context, options) => base.streamSimple(
-      model,
-      context,
-      prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay, settings().serviceTier),
-    ),
+    stream: (model, context, options) => {
+      const dispatch = (custom: boolean) => base.stream(model, context, {
+        ...prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay, settings().serviceTier),
+        fetch: transport.fetchImpl,
+        ...(custom ? { transport: 'sse' as const } : {}),
+      } as typeof options)
+      return transport.network ? transport.network.stream(dispatch) : dispatch(false)
+    },
+    streamSimple: (model, context, options) => {
+      const dispatch = (custom: boolean) => base.streamSimple(model, context, {
+        ...prepareCodexStreamOptions(base, model, options, transport, configuredOnPayload, replay, settings().serviceTier),
+        fetch: transport.fetchImpl,
+        ...(custom ? { transport: 'sse' as const } : {}),
+      } as typeof options)
+      return transport.network ? transport.network.stream(dispatch) : dispatch(false)
+    },
   }
 }
 
@@ -293,6 +302,7 @@ export class CodexAuthAdapter extends PiAiAdapter {
       nativeReplay,
       {
         fetchImpl: options.fetchImpl,
+        ...(options.network ? { network: options.network } : {}),
         timeoutMs: options.timeoutMs,
         streamIdleTimeoutMs: STREAM_IDLE_TIMEOUT_MS,
       },

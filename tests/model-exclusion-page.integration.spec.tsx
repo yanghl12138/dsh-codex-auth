@@ -3,12 +3,10 @@
 import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { expect, it, onTestFinished, vi } from 'vitest'
+import { expect, it, onTestFinished } from 'vitest'
 import { CodexCapabilitySettings, type LlmSettingsView } from '../src/client/CodexCapabilitySettings.tsx'
 import { en } from '../src/client/locales.ts'
 import { modelExclusionProfileFixture } from './support/model-exclusion-profile.ts'
-
-vi.mock('../src/env-proxy.ts', () => ({ installEnvHttpProxy: vi.fn() }))
 
 it('saves and clears model exclusions from the page into an isolated profile and live catalog', async () => {
   const fixture = modelExclusionProfileFixture('settings-page')
@@ -40,6 +38,13 @@ it('saves and clears model exclusions from the page into an isolated profile and
     }}
     t={key => en[key]} subscribe={() => () => {}} llmScope={llmScope} searchScope={unavailable()} imageScope={unavailable()}
   />)
+  fireEvent.change(screen.getByLabelText(en.networkMode), { target: { value: 'custom' } })
+  fireEvent.change(screen.getByLabelText(en.networkAddress), { target: { value: 'http://127.0.0.1:7890' } })
+  fireEvent.click(screen.getByText(en.networkSave))
+  await waitFor(() => expect(snapshot.value?.network).toEqual({ mode: 'custom', proxyUrl: 'http://127.0.0.1:7890' }))
+  expect(readFileSync(fixture.profile.patchPath, 'utf8')).toContain('http://127.0.0.1:7890')
+  await expect(ctx.settings.update('llm-codex-auth', { network: { mode: 'custom', proxyUrl: 'socks5://localhost:1080' } })).rejects.toThrow()
+  expect(ctx.settings.describe().find(row => row.ns === 'llm-codex-auth')!.value).toMatchObject({ network: snapshot.value?.network })
   const all = await ctx.llm.listModels('openai-codex')
   expect(all.some(model => model.id === 'gpt-6-sol')).toBe(true)
   expect(all.some(model => model.id === 'gpt-6-luna')).toBe(true)

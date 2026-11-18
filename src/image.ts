@@ -12,6 +12,7 @@ import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, LlmCallConfig, LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-settings'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type { CodexNetwork } from './codex-network.ts'
 import type { CodexAuthService, CodexCredential } from './codex-auth-service.ts'
 import { CODEX_ROUTE } from './codex-auth-adapter.ts'
 import { readBoundedResponseText } from './bounded-response.ts'
@@ -83,6 +84,7 @@ export interface CodexImageToolOptions {
   attachments: Pick<AttachmentStore, 'imageLimits' | 'validateImage' | 'saveImage' | 'readImage'>
   fs: Pick<FileSystem, 'resolve' | 'contains' | 'processPath' | 'readBytes'>
   resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<Pick<LlmResolvedModelInfo, 'inputModalities'>>
+  network?: CodexNetwork
   fetchImpl: typeof fetch
 }
 
@@ -197,7 +199,9 @@ function createGenerateImageTool(options: CodexImageToolOptions): ToolDefinition
       render: (_args, value) => renderGenerateResult(value as unknown as GenerateImageResult),
       presentationMeta: (_args, value) => value,
     },
-    execute: async (rawArgs, exec) => executeGenerateImage(options, rawArgs, exec),
+    execute: async (rawArgs, exec) => options.network
+      ? options.network.run(() => executeGenerateImage(options, rawArgs, exec))
+      : executeGenerateImage(options, rawArgs, exec),
     isConcurrencySafe: () => true,
   }
 }
@@ -869,7 +873,8 @@ export function apply(ctx: Context, config: Config): void {
     attachments: ctx.attachments,
     fs: ctx.fs,
     resolveModelInfo: async (provider, model, signal) => ctx.llm.resolveModelInfo(provider, model, signal),
-    fetchImpl: fetch,
+    fetchImpl: auth.network?.fetch ?? fetch,
+    ...(auth.network ? { network: auth.network } : {}),
   }
   const definitions = createCodexImageTools(options)
 

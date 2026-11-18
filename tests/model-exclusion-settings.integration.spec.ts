@@ -4,8 +4,6 @@ import { expect, it, vi } from 'vitest'
 import { modelExclusionProfileFixture as profileFixture } from './support/model-exclusion-profile.ts'
 import { createDefaultCodexLlmSettings } from '../src/codex-context.ts'
 
-vi.mock('../src/env-proxy.ts', () => ({ installEnvHttpProxy: vi.fn() }))
-
 it('persists per-profile exclusions, updates the live catalog without remounting, and restores at restart', async () => {
   const first = profileFixture('first')
   const second = profileFixture('second')
@@ -18,7 +16,7 @@ it('persists per-profile exclusions, updates the live catalog without remounting
   expect(all.some(model => model.id === 'gpt-6-luna')).toBe(true)
   expect((await ctx.llm.resolveModelInfo('openai-codex', 'gpt-6.1-terra')).context?.contextWindow).toBe(500_000)
   const otherBefore = readFileSync(second.profile.patchPath, 'utf8')
-  expect(ctx.settings.describe().find(row => row.ns === 'llm-codex-auth')?.value).toEqual(createDefaultCodexLlmSettings())
+  expect(ctx.settings.describe().find(row => row.ns === 'llm-codex-auth')?.value).toEqual({ ...createDefaultCodexLlmSettings(), network: { mode: 'inherit', proxyUrl: '' } })
   await ctx.settings.update('llm-codex-auth', { 'gpt-6.1-terra': true, serviceTier: 'fast' })
   const changed = vi.fn()
   ctx.on('llm/adapters-updated', changed)

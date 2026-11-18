@@ -359,11 +359,11 @@ describe('Codex Capability Bundle settings', () => {
     />)
 
     expect(await screen.findByText('Active')).toBeTruthy()
-    expect(screen.getAllByText('Loading settings…')).toHaveLength(3)
+    expect(screen.getAllByText('Loading settings…')).toHaveLength(4)
     const visibleBusyRegions = screen.getAllByRole('status')
       .filter(region => region.getAttribute('aria-busy') === 'true')
-    expect(visibleBusyRegions).toHaveLength(1)
-    expect(container.querySelectorAll('[aria-busy="true"]')).toHaveLength(3)
+    expect(visibleBusyRegions).toHaveLength(2)
+    expect(container.querySelectorAll('[aria-busy="true"]')).toHaveLength(4)
     expect(container.querySelectorAll('[aria-busy="true"] > div:not([aria-hidden="true"])')).toHaveLength(0)
   })
 
@@ -521,4 +521,28 @@ describe('client plugin registration', () => {
     const listResult = render(<ListImagesView block={listBlock} sessionId="session-a" t={t} />)
     expect(listResult.container.firstElementChild).toBeNull()
   })
+})
+
+
+it('saves the network object atomically and retains a failed draft', async () => {
+  const llm = fakeScope({ ...LLM, network: { mode: 'inherit' as 'inherit' | 'custom', proxyUrl: '' } })
+  render(<CodexCapabilitySettings rpc={rpc(authStatus({ configured: false }))} t={t} subscribe={subscribe}
+    llmScope={llm.scope} searchScope={fakeScope(SEARCH).scope} imageScope={fakeScope(IMAGE).scope} />)
+  expect(screen.queryByLabelText(en.networkAddress)).toBeNull()
+  fireEvent.change(screen.getByLabelText(en.networkMode), { target: { value: 'custom' } })
+  fireEvent.change(screen.getByLabelText(en.networkAddress), { target: { value: 'socks5://localhost:1080' } })
+  fireEvent.click(screen.getByText(en.networkSave))
+  expect(screen.getByText(en.networkInvalid)).toBeTruthy()
+  expect(llm.set).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText(en.networkAddress), { target: { value: 'http://127.0.0.1:7890' } })
+  llm.set.mockRejectedValueOnce(new Error('failed'))
+  fireEvent.click(screen.getByText(en.networkSave))
+  await waitFor(() => expect(screen.getByText(en.writeFailed)).toBeTruthy())
+  expect((screen.getByLabelText(en.networkAddress) as HTMLInputElement).value).toBe('http://127.0.0.1:7890')
+  fireEvent.click(screen.getByText(en.networkSave))
+  await waitFor(() => expect(screen.getByText(en.networkSaved)).toBeTruthy())
+  expect(llm.set).toHaveBeenLastCalledWith('network', { mode: 'custom', proxyUrl: 'http://127.0.0.1:7890' })
+  fireEvent.change(screen.getByLabelText(en.networkMode), { target: { value: 'inherit' } })
+  fireEvent.click(screen.getByText(en.networkSave))
+  await waitFor(() => expect(llm.set).toHaveBeenLastCalledWith('network', { mode: 'inherit', proxyUrl: 'http://127.0.0.1:7890' }))
 })

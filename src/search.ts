@@ -5,6 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-settings'
 import { WebError } from '@deepseek-ai/dsh-web'
 import type { WebSearchProvider, WebSearchRequest, WebSearchResult, WebSearchSource } from '@deepseek-ai/dsh-web'
+import type { CodexNetwork } from './codex-network.ts'
 import type { CodexAuthService } from './codex-auth-service.ts'
 import { CODEX_ROUTE } from './codex-auth-adapter.ts'
 import { readBoundedResponseText } from './bounded-response.ts'
@@ -63,6 +64,7 @@ function searchSettings(config: Config): CodexSearchSettings {
 export interface CodexSearchProviderOptions {
   auth: Pick<CodexAuthService, 'credential'> & Partial<Pick<CodexAuthService, 'status'>>
   settings: () => CodexSearchSettings
+  network?: CodexNetwork
   fetchImpl: typeof fetch
   /** Stable request/session id for the current operation. */
   requestId?: () => string
@@ -89,6 +91,12 @@ export class CodexSearchProvider implements WebSearchProvider {
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
+    return this.options.network
+      ? this.options.network.run(() => this.searchRequest(request, signal))
+      : this.searchRequest(request, signal)
+  }
+
+  private async searchRequest(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
     throwIfAborted(signal, 'CODEX_SEARCH_CANCELLED')
     const settings = this.options.settings()
     if (!settings.enabled) {
@@ -194,7 +202,8 @@ export function apply(ctx: Context, config: Config): void {
   ctx.web.registerSearchProvider(new CodexSearchProvider({
     auth,
     settings: () => current(),
-    fetchImpl: fetch,
+    fetchImpl: auth.network?.fetch ?? fetch,
+    ...(auth.network ? { network: auth.network } : {}),
     requestId: () => String(ctx.get('agents')?.currentInitiator()?.id ?? randomUUID()),
     initiatingModel: () => initiatingCodexModel(ctx),
   }))

@@ -609,3 +609,15 @@ See [`docs/design.md`](docs/design.md) and the [architecture decisions](docs/adr
 ## Friendship links
 
 - [L 站](https://linux.do/)
+
+### Codex-specific proxy
+
+Under GPT Auth → Network connection, choose **Follow DSH** (default) or **Custom proxy**. Use an unauthenticated HTTP/HTTPS proxy such as `http://127.0.0.1:7890`; SOCKS and credentials in proxy URLs are unsupported. Select your proxy application's HTTP port.
+
+Saving affects new operations. Existing streams and retries within an operation keep their route. The setting covers Codex models, token refresh, usage, native compaction, search and image creation without changing other providers. Proxy failure never falls back to direct access. Custom mode uses SSE; following DSH restores the configured transport preference.
+
+Loopback addresses refer to the DSH host. The plugin's Codex login subprocess receives the proxy; browser login pages retain browser network settings. Following DSH uses the host's networking policy: this plugin no longer installs a global environment proxy itself.
+
+The Host configuration field on the `llm-codex-auth` row is `network: { mode: 'custom', proxyUrl: 'http://127.0.0.1:7890' }`. Existing configurations require no migration.
+
+The [network settings preview](docs/screenshots/codex-network-settings-zh.png) renders the actual settings component with synthetic host controls and account state; it is not an installed Desktop screenshot.
