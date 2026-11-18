@@ -76,11 +76,21 @@ export interface Config extends LiveLlmSettings {
   timeoutMs: number
 }
 
+const networkShape = z.object({
+  mode: z.union([z.const('inherit'), z.const('custom')]).default('inherit'),
+  proxyUrl: z.string().default(''),
+}).default(DEFAULT_NETWORK_SETTINGS)
+const networkConfig = z.transform(networkShape, value => validateNetworkSettings({
+  mode: value.mode ?? 'inherit',
+  proxyUrl: value.proxyUrl ?? '',
+})).default(DEFAULT_NETWORK_SETTINGS).volatile()
+// DSH reconstructs and reserializes live settings schemas before serving them.
+// Publish the data shape and keep URL validation on the Host and in the editor.
+const networkForm = networkShape.volatile()
+networkConfig.toJSON = () => networkForm.toJSON() as ReturnType<typeof networkConfig.toJSON>
+
 export const Config: z<Config> = z.object({
-  network: z.transform(z.object({
-    mode: z.union([z.const('inherit'), z.const('custom')]).default('inherit'),
-    proxyUrl: z.string().default(''),
-  }), value => validateNetworkSettings({ mode: value.mode ?? 'inherit', proxyUrl: value.proxyUrl ?? '' })).default(DEFAULT_NETWORK_SETTINGS).volatile(),
+  network: networkConfig,
   llmEnabled: z.boolean().default(true),
   authJsonPath: z.string().default(''),
   credentialRef: z.string().default('CODEX_CHATGPT_TOKEN'),

@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import Schema from '@deepseek-ai/schemastery'
 import { expect, it, onTestFinished } from 'vitest'
 import { CodexCapabilitySettings, type LlmSettingsView } from '../src/client/CodexCapabilitySettings.tsx'
 import { en } from '../src/client/locales.ts'
@@ -13,10 +14,16 @@ it('saves and clears model exclusions from the page into an isolated profile and
   const ctx = await fixture.start()
   onTestFinished(cleanup)
   const listeners = new Set<() => void>()
-  const read = (): ConfigFormSnapshot<LlmSettingsView> => ({
-    status: 'ready', value: ctx.settings.describe().find(row => row.ns === 'llm-codex-auth')!.value as LlmSettingsView,
-    writable: ctx.settings.writable, base: {}, user: {}, revision: 1,
-  })
+  const read = (): ConfigFormSnapshot<LlmSettingsView> => {
+    const row = ctx.settings.describe().find(row => row.ns === 'llm-codex-auth')!
+    const wire = JSON.parse(JSON.stringify(row)) as typeof row
+    // The browser validates the section against the schema received over RPC.
+    new Schema(wire.schema as Schema)(wire.value)
+    return {
+      status: 'ready', value: wire.value as LlmSettingsView,
+      writable: ctx.settings.writable, base: {}, user: {}, revision: wire.revision,
+    }
+  }
   let snapshot = read()
   const publish = () => { snapshot = read(); for (const listener of listeners) listener() }
   const llmScope: ConfigForm<LlmSettingsView> = {

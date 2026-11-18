@@ -647,6 +647,20 @@ describe('CodexAuthService authenticated operation boundary', () => {
     })))
   })
 
+  it('uses a fresh login even when an empty writer lock was left behind', async () => {
+    const accessToken = fakeJwt(Math.floor(Date.now() / 1000) + 3600, 'acct-1')
+    await writeFile(authPath, JSON.stringify({
+      tokens: { access_token: accessToken, refresh_token: 'other-secret', account_id: 'acct-1' },
+    }), 'utf8')
+    const lockPath = `${authPath}.lock`
+    await writeFile(lockPath, '', { flag: 'wx' })
+    const fetchMock = vi.fn()
+
+    await expect(service(fetchMock).credential()).resolves.toMatchObject({ accessToken, accountId: 'acct-1' })
+    expect(await readFile(lockPath, 'utf8')).toBe('')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('treats a missing pre-lock read only as a hint and adopts the locked document', async () => {
     const fresh = fakeJwt(Math.floor(Date.now() / 1000) + 3600, 'acct-1')
     const fetchMock = vi.fn()

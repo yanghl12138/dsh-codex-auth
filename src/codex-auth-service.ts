@@ -192,9 +192,9 @@ export class CodexAuthService extends Service {
   /**
    * Resolve credentials for one authenticated operation. A fresh cached
    * credential with an untouched auth file is served directly (one stat, no
-   * read, no lock); everything else shares one in-process flight, which
-   * re-reads under the cross-process writer lock before deciding whether to
-   * refresh.
+   * read, no lock). On a cache miss, callers share a versioned read. Only
+   * potentially missing or stale credentials are re-read under the writer
+   * lock before deciding whether to refresh.
    */
   async credential(signal?: AbortSignal): Promise<CodexCredential | undefined> {
     throwIfAborted(signal)
@@ -308,8 +308,13 @@ export class CodexAuthService extends Service {
   private async resolveCredential(signal: AbortSignal): Promise<CodexCredential | undefined> {
     let observed: CodexAuthFile | undefined
     try {
-      observed = await readAuthFile(this.options.authJsonPath)
+      const snapshot = await readAuthSnapshot(this.options.authJsonPath)
       if (isAborted(signal)) return undefined
+      observed = snapshot?.file
+      // A fresh, stable snapshot can be served without contending with writers.
+      if (snapshot !== undefined && this.isCurrentLogin(snapshot.file)) {
+        return this.serveSnapshot(snapshot)
+      }
     } catch (error) {
       if (isAborted(signal)) return undefined
       // The pre-lock read is only a hint: another DSH process or Codex CLI may
@@ -329,9 +334,7 @@ export class CodexAuthService extends Service {
         return undefined
       }
       if (decision.mode === 'ready') {
-        this.publishStatus(statusFromFile(decision.snapshot.file, this.available, this.codexVersion, this.options.credentialRef))
-        this.recordResolved(decision.snapshot)
-        return credentialFromFile(decision.snapshot.file)
+        return this.serveSnapshot(decision.snapshot)
       }
       try {
         const reply = await refreshTokens(decision.refreshToken, this.options.fetchImpl ?? fetch, signal)
@@ -341,9 +344,7 @@ export class CodexAuthService extends Service {
           () => this.adoptRefreshedLocked(decision.snapshot.file, reply, signal),
         )
         if (isAborted(signal) || adopted === undefined) return undefined
-        this.publishStatus(statusFromFile(adopted.file, this.available, this.codexVersion, this.options.credentialRef))
-        this.recordResolved(adopted)
-        return credentialFromFile(adopted.file)
+        return this.serveSnapshot(adopted)
       } catch (error) {
         if (isAborted(signal)) return undefined
         // The Codex CLI does not share this lock. If it rotated the same login
@@ -352,9 +353,7 @@ export class CodexAuthService extends Service {
         if (isAborted(signal)) return undefined
         const leadMs = this.options.refreshLeadMs ?? DEFAULT_REFRESH_LEAD_MS
         if (canAdoptReplacement(decision.snapshot.file, replacement?.file, leadMs)) {
-          this.publishStatus(statusFromFile(replacement.file, this.available, this.codexVersion, this.options.credentialRef))
-          this.recordResolved(replacement)
-          return credentialFromFile(replacement.file)
+          return this.serveSnapshot(replacement)
         }
         this.warnCredentialFailure(
           'token refresh failed; run `codex login` to restore the Codex Login State',
@@ -371,6 +370,17 @@ export class CodexAuthService extends Service {
     }
   }
 
+  private isCurrentLogin(file: CodexAuthFile, state = authState(file)): boolean {
+    const leadMs = this.options.refreshLeadMs ?? DEFAULT_REFRESH_LEAD_MS
+    return state.accessToken !== undefined && !needsRefresh(state, leadMs) && !refreshTooOld(file, MAX_REFRESH_AGE_MS)
+  }
+
+  private serveSnapshot(snapshot: CodexAuthSnapshot): CodexCredential | undefined {
+    this.publishStatus(statusFromFile(snapshot.file, this.available, this.codexVersion, this.options.credentialRef))
+    this.recordResolved(snapshot)
+    return credentialFromFile(snapshot.file)
+  }
+
   /**
    * Under the writer lock, read the auth file and return a side-effect-free
    * refresh decision. Callers publish/cache only after their lifecycle check.
@@ -385,8 +395,7 @@ export class CodexAuthService extends Service {
     const file = snapshot.file
     const state = authState(file)
     if (state.accessToken === undefined) return { mode: 'absent', file }
-    const leadMs = this.options.refreshLeadMs ?? DEFAULT_REFRESH_LEAD_MS
-    if (!needsRefresh(state, leadMs) && !refreshTooOld(file, MAX_REFRESH_AGE_MS)) {
+    if (this.isCurrentLogin(file, state)) {
       return { mode: 'ready', snapshot }
     }
     const refreshToken = file.tokens?.refresh_token
